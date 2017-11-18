@@ -39,6 +39,12 @@
 			<artifactId>richtextfx</artifactId>
 			<version>0.6.10</version>
 		</dependency>
+		<dependency>
+		    <groupId>net.imagej</groupId>
+		    <artifactId>ij</artifactId>
+		    <version>1.51g</version>
+		</dependency>
+		
 	</dependencies>
 	
 	<build>
@@ -53,6 +59,6 @@
 			</plugin>
 		</plugins>
 	</build>
-	<name>qupath-extension-thesis</name>
+	<name>qupath-extension-tunel</name>
 	<description>An improved script editor for QuPath, using RichTextFX.</description>
 </project>

@@ -11,28 +11,22 @@ public class ThesisExtension implements QuPathExtension {
 	public void installExtension(QuPathGUI qupath){
         // Get reference to menu
         Menu menu = qupath.getMenu("Automate>Thesis-extension", true);
-        Menu menu2 = qupath.getMenu("TELIN Extension", true);
-        
-        // create menu item
-        MenuItem item = new MenuItem("Show thesis-extension");
-        MenuItem item2 = new MenuItem("Show new menu option");
-        
-		item.setOnAction(e -> {
-			new RichScriptEditor(qupath).showNewScript();
-		});
 
         // add new item to menu
-        menu.getItems().add(item);
-        menu2.getItems().add(item2);    }
+        QuPathGUI.addMenuItems(
+        					menu, 
+        					qupath.createPluginAction("Threshold", Thresholder.class, null, false)
+        					);
+    }
 	
     @Override
 	public String getName(){
-        return "thesis-extension";
+        return "qupath-extension-tunel";
     }
 	
     @Override
 	public String getDescription(){
-        return "First test of qupath extension.";
+        return "Extension for TUNEL and fluorescence microscopy.";
     }
 
 }
