@@ -49,8 +49,7 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 		private boolean nucleiClassified = false;
 
 		@Override
-		public Collection<PathObject> runDetection(ImageData<BufferedImage> imageData, ParameterList params,
-				ROI pathROI) {
+		public Collection<PathObject> runDetection(ImageData<BufferedImage> imageData, ParameterList params, ROI pathROI) {
 			
 			// clear
 			pathObjects.clear();
@@ -69,8 +68,9 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 			
 			// Set the values of parameters given by the user
 			int medianRadius, openingRadius;
-			double gaussianSigma, minArea;
+			double gaussianSigma, minArea, threshold;
 			
+			// Check if pixel size is known
 			if (server.hasPixelSizeMicrons()) {
 				double pixelSize = 0.5 * downsample * (server.getPixelHeightMicrons() + server.getPixelWidthMicrons());
 				medianRadius = (int)(params.getDoubleParameterValue("medianRadius") / pixelSize + .5);
@@ -85,12 +85,11 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 				minArea = params.getDoubleParameterValue("minArea");			
 			}
 			
-//			ColorDeconvolutionStains stains = imageData.getColorDeconvolutionStains();
-//			boolean isH_DAB = stains.isH_DAB();
-//			float[][] pxDeconvolved = colorDeconvolve(img, stains.getStain(1).getArray(), stains.getStain(2).getArray(), null, 2);
-//			float[] pxHematoxylin = pxDeconvolved[0];
-//			float[] pxDAB = isH_DAB ? pxDeconvolved[1] : null;
+			// Set threshold regardless of size
+			threshold = params.getDoubleParameterValue("threshold");
+			int MAX_PIXEL_VAL = 65535; // We assume 16bit image for now...
 			
+			// Read the actual pixel data from the BufferedImage
 			short[] pixels = ((DataBufferUShort) img.getRaster().getDataBuffer()).getData();
 
 			// Copy to array of doubles
@@ -107,7 +106,7 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 			// It seems OpenCV doesn't use the array directly, so no need to copy...
 			mat.put(0, 0, doubles);
 			
-			// Convert to 16bit and print
+			// Convert to 16bit and write to disk to see if it works
 			Mat write = new Mat();
 			mat.convertTo(write, CvType.CV_16U);
 			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\test.png", write);
@@ -118,7 +117,7 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 			// Create binary of the image
 			Mat matBinary = new Mat();
 //			Core.compare(mat, new Scalar(100), matBinary, Core.CMP_GT);
-			Imgproc.threshold(mat, matBinary, 4000, 65535, Imgproc.THRESH_BINARY);
+			Imgproc.threshold(mat, matBinary, threshold*MAX_PIXEL_VAL, MAX_PIXEL_VAL, Imgproc.THRESH_BINARY);
 			
 			// Convert to 16bit and print
 			matBinary.convertTo(write, CvType.CV_16U);
