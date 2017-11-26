@@ -44,6 +44,10 @@
 		    <artifactId>ij</artifactId>
 		    <version>1.51g</version>
 		</dependency>
+		<dependency>
+			<groupId>org.opencv</groupId>
+			<artifactId>opencv</artifactId>
+		</dependency>
 		
 	</dependencies>
 	

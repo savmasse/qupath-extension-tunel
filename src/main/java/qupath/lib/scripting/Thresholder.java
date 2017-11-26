@@ -1,14 +1,19 @@
 package qupath.lib.scripting;
 
 import java.awt.image.BufferedImage;
+import java.util.Collection;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ij.IJ;
 import qupath.lib.images.ImageData;
+import qupath.lib.objects.PathObject;
 import qupath.lib.plugins.AbstractTileableDetectionPlugin;
 import qupath.lib.plugins.ObjectDetector;
 import qupath.lib.plugins.parameters.ParameterList;
+import qupath.lib.roi.interfaces.ROI;
 
 public class Thresholder extends AbstractTileableDetectionPlugin<BufferedImage>{
 	// Always add a logger
@@ -20,16 +25,20 @@ public class Thresholder extends AbstractTileableDetectionPlugin<BufferedImage>{
 		// create a small menu
 		params = new ParameterList();
 		params.addTitleParameter("Threshold");
-		params.addIntParameter("thresholdValue", "Set threshold value", 1, "Set the threshold for the image.");
-		
+		params.addDoubleParameter("thresholdLower", "Lower threshold of the image", 10);
 	}
 	
-	static class CellDetector {
-
+	static class CellDetector implements ObjectDetector<BufferedImage>{
 		public String getLastResultsDescription() {
 			return null;
 		}
-		
+
+		@Override
+		public Collection<PathObject> runDetection(ImageData<BufferedImage> imageData, ParameterList params,
+				ROI pathROI) {
+			// TODO Auto-generated method stub
+			return null;
+		}
 	}
 
 	@Override
@@ -56,7 +65,7 @@ public class Thresholder extends AbstractTileableDetectionPlugin<BufferedImage>{
 	@Override
 	protected ObjectDetector<BufferedImage> createDetector(ImageData<BufferedImage> imageData, ParameterList params) {
 		// TODO Auto-generated method stub
-		return null;
+		return new CellDetector();
 	}
 
 	@Override
@@ -69,12 +78,10 @@ public class Thresholder extends AbstractTileableDetectionPlugin<BufferedImage>{
 //		System.out.println("Tile overlap: " + overlap + " pixels");
 		return overlap;
 	}
-
-	@Override
-	public ParameterList getDefaultParameterList(ImageData<BufferedImage> imageData) {
-		// TODO Auto-generated method stub
-		return null;
-	}
 	
+	@Override
+	public ParameterList getDefaultParameterList(final ImageData<BufferedImage> imageData) {
+		return params;
+	}
 	
 }

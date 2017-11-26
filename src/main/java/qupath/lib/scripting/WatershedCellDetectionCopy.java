@@ -317,7 +317,7 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 					fpDetection = channels.get("Channel 1");
 				}
 			}
-			WatershedCellDetector detector2 = new WatershedCellDetector(fpDetection, channels, channelsCell, roi, pathImage);
+			//WatershedCellDetector detector2 = new WatershedCellDetector(fpDetection, channels, channelsCell, roi, pathImage);
 			
 			// Create or reset the PathObjects list
 			if (pathObjects == null)
@@ -325,7 +325,7 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 			else
 				pathObjects.clear();
 	
-			
+			/*
 			// Convert parameters where needed
 			double sigma, medianRadius, backgroundRadius, minArea, maxArea, cellExpansion;
 			if (pathImage.hasPixelSizeMicrons()) {
@@ -344,8 +344,9 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 				maxArea = params.getDoubleParameterValue("maxArea");
 				cellExpansion = params.getDoubleParameterValue("cellExpansion");
 			}
+			*/
 			
-			detector2.runDetection(
+			/*detector2.runDetection(
 					backgroundRadius,
 					isBrightfield ? params.getDoubleParameterValue("maxBackground") : Double.NEGATIVE_INFINITY,
 					medianRadius,
@@ -362,9 +363,10 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 					params.getBooleanParameterValue("includeNuclei"),
 					params.getBooleanParameterValue("makeMeasurements"),
 					pathROI.getZ(),
-					pathROI.getT());// && isBrightfield);
+					pathROI.getT());// && isBrightfield);		
+			*/
 			
-			pathObjects.addAll(detector2.getPathObjects());
+			//pathObjects.addAll(detector2.getPathObjects());
 					
 			return pathObjects;
 		}
@@ -389,7 +391,6 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 
 		
 	}
-	
 	
 
 	@Override
@@ -888,25 +889,6 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 			lastRunCompleted = true;
 		}
 		
-		
-		
-		
-		private static PolygonRoi smoothPolygonRoi(PolygonRoi r) {
-			FloatPolygon poly = r.getFloatPolygon();
-			FloatPolygon poly2 = new FloatPolygon();
-			int nPoints = poly.npoints;
-			for (int i = 0; i < nPoints; i += 2) {
-				int iMinus = (i + nPoints - 1) % nPoints;
-				int iPlus = (i + 1) % nPoints;
-				poly2.addPoint((poly.xpoints[iMinus] + poly.xpoints[iPlus] + poly.xpoints[i])/3, 
-						(poly.ypoints[iMinus] + poly.ypoints[iPlus] + poly.ypoints[i])/3);
-			}
-//			return new PolygonRoi(poly2, r.getType());
-			return new PolygonRoi(poly2, Roi.POLYGON);
-		}
-		
-		
-		
 		public List<PathObject> getPathObjects() {
 			return pathObjects;
 		}
@@ -970,7 +952,7 @@ public class WatershedCellDetectionCopy extends AbstractTileableDetectionPlugin<
 //			if (!updateAnything)
 //				return;
 			
-			doDetection(updateNucleusROIs);
+			//doDetection(updateNucleusROIs);
 			
 		}
 		
