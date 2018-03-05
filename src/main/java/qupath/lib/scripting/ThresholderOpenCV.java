@@ -15,15 +15,24 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import groovyjarjarantlr.preprocessor.Hierarchy;
 import ij.ImagePlus;
+import ij.gui.PolygonRoi;
+import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij.plugin.filter.RankFilters;
+import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import qupath.imagej.objects.PathImagePlus;
+import qupath.imagej.objects.ROIConverterIJ;
+import qupath.imagej.objects.measure.ObjectMeasurements;
 import qupath.lib.awt.common.AwtTools;
 import qupath.lib.classifiers.PathClassificationLabellingHelper;
 import qupath.lib.classifiers.PathClassifierTools;
@@ -49,15 +58,22 @@ import qupath.lib.objects.helpers.PathObjectColorToolsAwt;
 import qupath.lib.objects.helpers.PathObjectTools;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.PathAnnotationObject;
+import qupath.lib.objects.PathCellObject;
 import qupath.lib.objects.PathDetectionObject;
 import qupath.lib.plugins.AbstractTileableDetectionPlugin;
 import qupath.lib.plugins.ObjectDetector;
 import qupath.lib.plugins.parameters.ParameterList;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.PathObjectToolsAwt;
+import qupath.lib.roi.PathROIToolsAwt;
 import qupath.lib.roi.PolygonROI;
+import qupath.lib.roi.RectangleROI;
+import qupath.lib.roi.experimental.ShapeSimplifier;
 import qupath.lib.roi.interfaces.ROI;
+import qupath.opencv.processing.OpenCVTools;
+import qupath.opencv.processing.ProcessingCV;
 
-public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedImage> {
+public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <BufferedImage> {
 	private static final Logger logger = LoggerFactory.getLogger(OpenCVDetection.class);
 			
 	transient static OpenCvDetector detector;
@@ -66,6 +82,9 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 		private ROI pathROI;
 		private List <PathObject> pathObjects = new ArrayList<>();
 		private boolean nucleiClassified = false;
+		
+		static String ADAPTIVE_GAUSSIAN = "Gaussian";
+		static String ADAPTIVE_MEAN = "Mean";
 
 		@Override
 		public Collection<PathObject> runDetection(ImageData<BufferedImage> imageData, ParameterList params, ROI pathROI) {
@@ -87,7 +106,9 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 		
 			// Set the values of parameters given by the user
 			int medianRadius, openingRadius;
-			double gaussianSigma, minArea, threshold;
+			double gaussianSigma, minArea, threshold, adaptiveBlockSize, kernelSize;
+			boolean splitShape, adaptiveThreshold, simplifyShapes;
+			String adaptiveMethod;
 			
 			// Check if pixel size is known
 			if (server.hasPixelSizeMicrons()) {
@@ -101,8 +122,17 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 				medianRadius = (int)(params.getDoubleParameterValue("medianRadius") + .5);
 				gaussianSigma = params.getDoubleParameterValue("gaussianSigma");
 				openingRadius = (int)(params.getDoubleParameterValue("openingRadius") + .5);
-				minArea = params.getDoubleParameterValue("minArea");			
+				minArea = params.getDoubleParameterValue("minArea");
 			}
+			
+			// Other parameters
+			splitShape = params.getBooleanParameterValue("splitShape");
+			simplifyShapes = params.getBooleanParameterValue("simplifyShapes");
+			adaptiveThreshold = params.getBooleanParameterValue("adaptiveThreshold");
+			adaptiveBlockSize = params.getDoubleParameterValue("adaptiveBlockSize");
+			kernelSize = params.getDoubleParameterValue("kernelSize");
+			kernelSize = (int) kernelSize;
+			final int ADAPTIVE_METHOD = params.getChoiceParameterValue("adaptiveMethod").equals(ADAPTIVE_GAUSSIAN) ? Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C : Imgproc.ADAPTIVE_THRESH_MEAN_C;
 			
 			// Set threshold regardless of size
 			threshold = params.getDoubleParameterValue("threshold");
@@ -115,7 +145,6 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 				logger.info("Detection channel input does not exist. Set to 1 by default.");
 			}
 			
-		/* TEST OF READING DIFFERENT CHANNELS */
 			// Get image data with intent to seperate channels
 			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, pathROI, ServerTools.getDownsampleFactor(server, getPreferredPixelSizeMicrons(imageData, params), true));
 
@@ -124,67 +153,101 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 			// Detect the bit depth of the image
 			int bitDepth = ip.getBitDepth();
 			int MAX_PIXEL_VAL = (int) Math.pow(bitDepth, 2);
-			MAX_PIXEL_VAL = 65635;
+			// TODO :: Handle bit depths other than 16bit
+			MAX_PIXEL_VAL = 65535;
 			
+			// Create map for channel data
 			Map<String, FloatProcessor> channels = new LinkedHashMap<>();
-			
 			ImagePlus imp = pathImage.getImage();
 			for (int c = 1; c <= imp.getNChannels(); c++) {
 				channels.put("Channel " + c, imp.getStack().getProcessor(imp.getStackIndex(c, 0, 0)).convertToFloatProcessor());
 			}
 			
-			// Get the processor for the second channel
+			// Get the processor for selected channel
 	        FloatProcessor fp = channels.get("Channel " + detectionChannel);
+	        
+			// Remove all data outside the ROI of the annotation by setting a mask
+//			Roi mask = ROIConverterIJ.convertToIJRoi(pathROI, pathImage);
+//			fp.setRoi(mask);
+			
+			// Get with and height
 	        final int w = fp.getWidth();
 	        final int h = fp.getHeight();
+	        
 	        // Load pixel data into a new Mat object
 	        final float[] pix = (float[]) fp.getPixels();
 	       	Mat mat = new Mat (h,w, CvType.CV_32FC1);
 			mat.put(0, 0, pix);
-
-		/* END OF TEST */
 			
-//			// Read the actual pixel data from the BufferedImage
-//			short[] pixels = ((DataBufferUShort) img.getRaster().getDataBuffer()).getData();
-//
-//			// Copy to array of doubles
-//			double[] doubles = new double[pixels.length];
-//			for(int i=0; i<pixels.length; i++) {
-//			    doubles[i] = pixels[i];
-//			}
+/*************************
+/ Processing starts here /
+*************************/
 			
-//			// Convert to OpenCV Mat
-//			int width = img.getWidth();
-//			int height = img.getHeight();
-//			Mat mat = new Mat(height, width, CvType.CV_32FC1);
-//						
-//			// It seems OpenCV doesn't use the array directly, so no need to copy...
-//			mat.put(0, 0, doubles);
-			
-			
-			// Convert to 16bit and write to disk to see if it works
+	        // Start off with some simple preprocessing and a closing
+			Mat matBackground = new Mat();
 			Mat write = new Mat();
-			mat.convertTo(write, CvType.CV_16U);
-			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\test.png", write);
+
+			Imgproc.medianBlur(mat, mat, 3);
+			Imgproc.GaussianBlur(mat, mat, new Size(5, 5), gaussianSigma);
+			Imgproc.morphologyEx(mat, matBackground, Imgproc.MORPH_CLOSE, OpenCVTools.getCircularStructuringElement(1));
+			ProcessingCV.morphologicalReconstruction(mat, matBackground);
 			
-			// Create binary of the image
-			Mat matBinary = new Mat();
-//			Core.compare(mat, new Scalar(100), matBinary, Core.CMP_GT);
-			Imgproc.threshold(mat, matBinary, threshold*MAX_PIXEL_VAL, MAX_PIXEL_VAL, Imgproc.THRESH_BINARY);
+			// Apply opening by reconstruction & subtraction to reduce background
+			Imgproc.morphologyEx(mat, matBackground, Imgproc.MORPH_OPEN, OpenCVTools.getCircularStructuringElement(openingRadius));
 			
-			// Convert to 16bit and print
-			matBinary.convertTo(write, CvType.CV_16U);
-			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\Binary.png", write);
+//			mat.convertTo(write, CvType.CV_16U);
+//			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\before.png", write);
+//			
+//			ProcessingCV.morphologicalReconstruction(matBackground, mat);
+//			Core.subtract(mat, matBackground, mat);
+//			
+//			// Write
+//			mat.convertTo(write, CvType.CV_16U);
+//			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\after.png", write);
 			
-			matBinary.convertTo(matBinary, CvType.CV_32SC1);
+			// Write
+			matBackground.convertTo(matBackground, CvType.CV_16U);
+			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\background.png", matBackground);
 			
+			// Apply Gaussian filter
+//			int gaussianWidth = (int)(Math.ceil(gaussianSigma * 3) * 2 + 1);
+//			Imgproc.GaussianBlur(mat, mat, new Size(gaussianWidth, gaussianWidth), gaussianSigma);
+			
+			// Apply morphological transformations
+			Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_OPEN, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
+			Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_DILATE, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
+
+			
+			// Threshold
+			Mat binary = new Mat();
+			if (!adaptiveThreshold) {
+				Imgproc.threshold(mat, binary, threshold*MAX_PIXEL_VAL, MAX_PIXEL_VAL, Imgproc.THRESH_BINARY);
+				// Convert the binary image to 8bit
+				binary.convertTo(binary, CvType.CV_8U, 0.00390625);
+			}
+			else {
+				mat.convertTo(binary, CvType.CV_8U, 0.00390625);
+				Imgproc.adaptiveThreshold(binary, binary, MAX_PIXEL_VAL, ADAPTIVE_METHOD, Imgproc.THRESH_BINARY, (int) adaptiveBlockSize, 0);
+			}
+						
+			
+			// Split using distance transform, if necessary
+			if (splitShape) {
+//				OpenCVTools.watershedDistanceTransformSplit(binary, openingRadius/4);
+				Imgproc.dilate(binary, binary, Imgproc.getStructuringElement(Imgproc.CV_SHAPE_ELLIPSE, new Size(kernelSize, kernelSize)));
+				Imgproc.erode(binary, binary, Imgproc.getStructuringElement(Imgproc.CV_SHAPE_ELLIPSE, new Size(kernelSize, kernelSize)));
+			}
+
+
 			// Use OpenCV to find simple contours
 			List <MatOfPoint> contours = new ArrayList<>();
-			Imgproc.findContours( matBinary, contours, new Mat (), Imgproc.RETR_FLOODFILL,Imgproc.CHAIN_APPROX_SIMPLE);
+			Imgproc.findContours( binary , contours, new Mat (), Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
 			ArrayList<Point2> points = new ArrayList<>();
+//--------
 			
 			// Go through contours
 			for (MatOfPoint contour : contours) {
+				
 				if (contour.size().height <= 2) {
 					continue;
 				}
@@ -196,57 +259,49 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 				
 				PolygonROI pathPolygon = new PolygonROI(points);
 				
+				// Only go on if the polygon is inside the ROI
+				if ( !(pathROI instanceof RectangleROI) && !(PathObjectTools.containsROI(pathROI, pathPolygon)) ) {
+					continue;
+				}
+				
 				// Don't save polygon if smaller than minimum allowed area
 				double area = pathPolygon.getArea();
 				if (!(area >= minArea)) {
 					continue;
 				}
 				
+				// TODO :: Make simplifications before the measurement ?
+	        	PolygonROI polygonROI;
+	        	if (simplifyShapes) {
+					// Simplify the shape of the ROI (adapted from WatershedCellDetection)
+					Calibration cal = pathImage.getImage().getCalibration();
+		        	PolygonRoi rOrig = (PolygonRoi) ROIConverterIJ.convertToIJRoi(pathPolygon, pathImage);
+		        	PolygonRoi polygonRoi = new PolygonRoi(rOrig.getInterpolatedPolygon(Math.min(2.5, rOrig.getNCoordinates()*0.1), true), Roi.POLYGON);
+		        	
+		        	// We're not dealing with z-stacks/t-stacks so ignore this for now...
+		        	int z = 0, t = 0;
+					polygonROI = ROIConverterIJ.convertToPolygonROI(polygonRoi, cal, pathImage.getDownsampleFactor(), 0, z, t);
+		        	polygonROI = ShapeSimplifier.simplifyPolygon(polygonROI, pathImage.getDownsampleFactor()/4.0);
+	        	}
+	        	else 
+	        		polygonROI = pathPolygon;
+				
 				// Create measurements
 	        	MeasurementList measurementList = MeasurementListFactory.createMeasurementList(20, MeasurementList.TYPE.FLOAT);
 	        	measurementList.addMeasurement("Nucleus: Area", area);
+	        	measurementList.addMeasurement("Nucleus: Perimeter", pathPolygon.getPerimeter());
+	        	measurementList.addMeasurement("Nucleus: Circularity", pathPolygon.getCircularity());
+	        	measurementList.addMeasurement("Nucleus: Solidity", pathPolygon.getSolidity()); 
 				
-				// Create a simple object	        	
-				PathObject pathObject = new PathDetectionObject (pathPolygon, null, measurementList);
-				
+				// Create a simple PathDetectionObject    	
+				PathObject pathObject = new PathDetectionObject (polygonROI, null, measurementList);
+
 				// Add PathObject to the list
 				pathObjects.add(pathObject);
 			}
 			
-			// TODO: Test whether we can access data from the 'tumor' class
-			PathClass pc = PathClassFactory.getDefaultPathClass(PathClasses.TUMOR);
-			logger.info("ClassName = " + pc.getName());
-			
-			// Set an element to a certain class (here 'TUMOR')
-			PathObject pathObject = pathObjects.get(0);
-			pathObject.setPathClass(pc);
-			
-			// Create an annotation around this object by extracting the ROI
-			ROI pROI = pathObject.getROI();
-			PathAnnotationObject pao = new PathAnnotationObject(pROI);
-			// Add the object to the new annotation
-			pao.addPathObject(pathObject);
-			pao.setPathClass(pc);
-			
-			// Get the standard hierarchy and add the newly created annotation
-			PathObjectHierarchy hierarchy = imageData.getHierarchy();
-			hierarchy.addPathObject(pao, true);
-			
-			List <PathObject> pathList = PathClassificationLabellingHelper.getAnnotationsForClass(hierarchy, pc);
-			
-			logger.info("AnnotationCount for TUMOR = " + pathList.size());
 
-//			List <PathObject> tumorObjects = hierarchy.getObjects(null, PathDetectionObject.class);
-			
-			// TODO: Generate a custom class from code
-//			QuPathGUI qupath = QuPathGUI.getInstance();
-			
-			// TODO :: Convert all pathObjects from cells to AnnotationObjects so they can be registered in the class menu
-			
-//			return pathObjects;
-			List <PathObject> res = new ArrayList();
-			res.add(pao);
-			return res;
+			return pathObjects;
 		}
 
 		@Override
@@ -314,8 +369,8 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 		
 		// Get the classes that currently exist and display them as choices
 		List <String> classList = new ArrayList<>();
-		classList.add("Option 1");
-		classList.add("Option 2");		
+		classList.add("Gaussian");
+		classList.add("Mean");		
 		
 		if (imageData.isFluorescence()) {
 			logger.info("FLUORESCENCE IMAGE");
@@ -323,8 +378,7 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 						
 		ParameterList params = new ParameterList();
 		params.addIntParameter("detectionChannel", "Detection channel", 1).
-			addDoubleParameter("preferredMicrons", "Preferred pixel size", 0.5, GeneralTools.micrometerSymbol()).
-			addChoiceParameter("detectionImageBrightfield", "Choose detection image", "TEST", classList, "Transformed image to which to apply the detection");
+			addDoubleParameter("preferredMicrons", "Preferred pixel size", 0.5, GeneralTools.micrometerSymbol());
 		
 		if (imageData.getServer().hasPixelSizeMicrons()) {
 			String um = GeneralTools.micrometerSymbol();
@@ -342,6 +396,13 @@ public class OpenCVDetection extends AbstractTileableDetectionPlugin <BufferedIm
 					addDoubleParameter("minArea", "Minimum area", 100, "px^2");
 		}
 		params.addBooleanParameter("splitShape", "Split by shape", true);		
+		
+		// Extra parameters
+		params.addBooleanParameter("simplifyShapes", "Simplify object contours", true);
+		params.addBooleanParameter("adaptiveThreshold", "Adaptive thresholding", true);		
+		params.addDoubleParameter("adaptiveBlockSize", "Adaptive threshold block size", 35);
+		params.addChoiceParameter("adaptiveMethod", "Adaptive thresholding method", classList.get(0), classList, "Choose the method used for the adaptive thresholding.");
+		params.addDoubleParameter("kernelSize", "Adaptive threshold kernel size", 3);
 		
 		return params;
 	}
