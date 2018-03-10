@@ -43,7 +43,6 @@ import ij.gui.Roi;
 import ij.gui.Wand;
 import ij.measure.Calibration;
 import ij.measure.Measurements;
-import ij.plugin.Histogram;
 import ij.plugin.filter.EDM;
 import ij.plugin.filter.RankFilters;
 import ij.process.AutoThresholder;
@@ -101,7 +100,7 @@ import qupath.lib.roi.interfaces.ROI;
  * @author Pete Bankhead
  *
  */
-public class WatershedCellDetection extends AbstractTileableDetectionPlugin<BufferedImage> {
+public class WatershedCellDetection2 extends AbstractTileableDetectionPlugin<BufferedImage> {
 
 	private static String[] micronParameters = {
 		"requestedPixelSizeMicrons",
@@ -142,7 +141,7 @@ public class WatershedCellDetection extends AbstractTileableDetectionPlugin<Buff
 	ParameterList params;
 	
 	
-	public WatershedCellDetection() {
+	public WatershedCellDetection2() {
 		params = new ParameterList();
 		// TODO: Use a better way to determining if pixel size is available in microns
 //		params.addEmptyParameter("detectionParameters", "Detection parameters", true);
@@ -588,12 +587,7 @@ public class WatershedCellDetection extends AbstractTileableDetectionPlugin<Buff
 				fpLoG.convolve(new float[]{0, -1, 0, -1, 4, -1, 0, -1, 0}, 3, 3);
 				
 				// Threshold the main LoG image
-				//bpLoG = SimpleThresholding.thresholdAbove(fpLoG, 0f);
-				
-				AutoThresholder at = new AutoThresholder();
-				int t = at.getThreshold(AutoThresholder.Method.Otsu, fpLoG.getHistogram(256));
-				bpLoG = SimpleThresholding.thresholdAbove(fpLoG, t);
-				
+				bpLoG = SimpleThresholding.thresholdAbove(fpLoG, 0f);
 				// Need to set the threshold very slightly above zero for ImageJ
 				// TODO: DECIDE ON USING MY WATERSHED OR IMAGEJ'S....
 				fpLoG.setRoi(roi);

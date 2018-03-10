@@ -2,47 +2,50 @@ package qupath.lib.scripting;
 
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferUShort;
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.swing.plaf.multi.MultiTableHeaderUI;
+
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
-import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import groovyjarjarantlr.preprocessor.Hierarchy;
+import groovy.transform.AutoCloneStyle;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.measure.Calibration;
-import ij.plugin.filter.RankFilters;
+import ij.plugin.filter.ThresholdToSelection;
+import ij.process.AutoThresholder;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ij.process.StackStatistics;
+import ij.process.AutoThresholder.Method;
+import qupath.imagej.helpers.IJTools;
 import qupath.imagej.objects.PathImagePlus;
 import qupath.imagej.objects.ROIConverterIJ;
-import qupath.imagej.objects.measure.ObjectMeasurements;
+import qupath.imagej.processing.SimpleThresholding;
+import qupath.lib.analysis.algorithms.Watershed;
+import qupath.lib.analysis.stats.StatisticsHelper;
 import qupath.lib.awt.common.AwtTools;
-import qupath.lib.classifiers.PathClassificationLabellingHelper;
-import qupath.lib.classifiers.PathClassifierTools;
-import qupath.lib.classifiers.PathObjectClassifier;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.Point2;
-import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.panels.PathAnnotationPanel;
-import qupath.lib.gui.panels.PathImageDetailsPanel;
-import qupath.lib.gui.panels.classify.PathClassifierPanel;
+import qupath.lib.ij_opencv.ImagePlusToMatConverter;
+import qupath.lib.ij_opencv.MatToImagePlusConverter;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.PathImage;
 import qupath.lib.images.servers.ImageServer;
@@ -50,22 +53,14 @@ import qupath.lib.images.servers.ServerTools;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.measurements.MeasurementListFactory;
 import qupath.lib.objects.PathObject;
-import qupath.lib.objects.PathROIObject;
-import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.classes.PathClassFactory;
-import qupath.lib.objects.classes.PathClassFactory.PathClasses;
-import qupath.lib.objects.helpers.PathObjectColorToolsAwt;
 import qupath.lib.objects.helpers.PathObjectTools;
-import qupath.lib.objects.hierarchy.PathObjectHierarchy;
-import qupath.lib.objects.PathAnnotationObject;
-import qupath.lib.objects.PathCellObject;
 import qupath.lib.objects.PathDetectionObject;
 import qupath.lib.plugins.AbstractTileableDetectionPlugin;
 import qupath.lib.plugins.ObjectDetector;
+import qupath.lib.plugins.objects.ShapeFeaturesPlugin;
 import qupath.lib.plugins.parameters.ParameterList;
 import qupath.lib.regions.RegionRequest;
-import qupath.lib.roi.PathObjectToolsAwt;
-import qupath.lib.roi.PathROIToolsAwt;
 import qupath.lib.roi.PolygonROI;
 import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.experimental.ShapeSimplifier;
@@ -108,7 +103,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 			int medianRadius, openingRadius;
 			double gaussianSigma, minArea, threshold, adaptiveBlockSize, kernelSize;
 			boolean splitShape, adaptiveThreshold, simplifyShapes;
-			String adaptiveMethod;
+			String thresholder;
 			
 			// Check if pixel size is known
 			if (server.hasPixelSizeMicrons()) {
@@ -137,6 +132,9 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 			// Set threshold regardless of size
 			threshold = params.getDoubleParameterValue("threshold");
 			
+			// Get thresholding method
+			thresholder = (String) params.getChoiceParameterValue("thresholder");
+			
 			// Set the detection channel 
 			int detectionChannel = params.getIntParameterValue("detectionChannel");
 			// If set to zero or to a non-existing channel, set to 1 as default
@@ -145,7 +143,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 				logger.info("Detection channel input does not exist. Set to 1 by default.");
 			}
 			
-			// Get image data with intent to seperate channels
+			// Get image data with intent to separate channels
 			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, pathROI, ServerTools.getDownsampleFactor(server, getPreferredPixelSizeMicrons(imageData, params), true));
 
 			ImageProcessor ip = pathImage.getImage().getProcessor();
@@ -185,7 +183,6 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 			
 	        // Start off with some simple preprocessing and a closing
 			Mat matBackground = new Mat();
-			Mat write = new Mat();
 
 			Imgproc.medianBlur(mat, mat, 3);
 			Imgproc.GaussianBlur(mat, mat, new Size(5, 5), gaussianSigma);
@@ -198,8 +195,8 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 //			mat.convertTo(write, CvType.CV_16U);
 //			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\before.png", write);
 //			
-//			ProcessingCV.morphologicalReconstruction(matBackground, mat);
-//			Core.subtract(mat, matBackground, mat);
+			ProcessingCV.morphologicalReconstruction(matBackground, mat);
+			Core.subtract(mat, matBackground, mat);
 //			
 //			// Write
 //			mat.convertTo(write, CvType.CV_16U);
@@ -214,16 +211,91 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 //			Imgproc.GaussianBlur(mat, mat, new Size(gaussianWidth, gaussianWidth), gaussianSigma);
 			
 			// Apply morphological transformations
-			Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_OPEN, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
-			Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_DILATE, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
+			//Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_OPEN, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
+			//Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_DILATE, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
 
 			
 			// Threshold
 			Mat binary = new Mat();
 			if (!adaptiveThreshold) {
-				Imgproc.threshold(mat, binary, threshold*MAX_PIXEL_VAL, MAX_PIXEL_VAL, Imgproc.THRESH_BINARY);
-				// Convert the binary image to 8bit
-				binary.convertTo(binary, CvType.CV_8U, 0.00390625);
+				//Imgproc.threshold(mat, binary, threshold*MAX_PIXEL_VAL, MAX_PIXEL_VAL, Imgproc.THRESH_BINARY);
+//				// Convert the binary image to 8bit
+				//binary.convertTo(binary, CvType.CV_8U, 0.00390625);
+				
+// -- NEW : Try AutoThresholding in the ImageJ library
+				
+				// Set the thresholding method
+				AutoThresholder.Method m;
+				logger.info(thresholder);
+				switch (thresholder) {
+					case "Huang": 
+						m = AutoThresholder.Method.Huang;
+						break;
+					case "Intermodes": 
+						m = AutoThresholder.Method.Intermodes;
+						logger.info("Intermodes");
+						break;
+					case "IsoData": 
+						m = AutoThresholder.Method.IsoData;
+						break;
+					case "Li": 
+						m = AutoThresholder.Method.Li;
+						break;
+					case "MaxEntropy": 
+						m = AutoThresholder.Method.MaxEntropy;
+						logger.info("MaxEntropy");
+						break;
+					case "Mean": 
+						m = AutoThresholder.Method.Mean;
+						break;
+					case "MinError":
+						m = AutoThresholder.Method.MinError;
+						break;
+					case "Minimum":
+						m = AutoThresholder.Method.Minimum;
+						break;
+					case "Moments": 
+						m = AutoThresholder.Method.Moments;
+						break;
+					case "Otsu":
+						m = AutoThresholder.Method.Otsu;
+						break;
+					case "Percentile":
+						m = AutoThresholder.Method.Percentile;
+						break;
+					case "RenyiEntropy": 
+						m = AutoThresholder.Method.RenyiEntropy;
+						break;
+					case "Shanbhag": 
+						m = AutoThresholder.Method.Shanbhag;
+						break;
+					case "Triangle":
+						m = AutoThresholder.Method.Triangle;
+						break;
+					case "Yen": 
+						m = AutoThresholder.Method.Yen;
+						break;
+					default: 
+						m = AutoThresholder.Method.Default;
+				}
+				
+				// Convert Mat to IP
+				ImageProcessor ipMat = MatToImagePlusConverter.toImageProcessor(mat);
+				ipMat = (FloatProcessor) ipMat;
+				
+				// Thresholding
+				AutoThresholder at = new AutoThresholder();
+				int t = at.getThreshold(m, ipMat.getHistogram(256))*255;
+				ByteProcessor bp = SimpleThresholding.thresholdAbove(ipMat, t);
+				
+				// Convert back to openCV
+				binary = ImagePlusToMatConverter.toMat(bp);
+				//binary = ImagePlusToMatConverter.toMat(ipMat);
+				//binary.convertTo(binary, CvType.CV_8U, 0.00390625);
+								
+				Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\binary.png", binary);
+// -- END NEW
+				
 			}
 			else {
 				mat.convertTo(binary, CvType.CV_8U, 0.00390625);
@@ -241,7 +313,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 
 			// Use OpenCV to find simple contours
 			List <MatOfPoint> contours = new ArrayList<>();
-			Imgproc.findContours( binary , contours, new Mat (), Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
+			Imgproc.findContours( binary , contours, new Mat (), Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE);
 			ArrayList<Point2> points = new ArrayList<>();
 //--------
 			
@@ -263,13 +335,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 				if ( !(pathROI instanceof RectangleROI) && !(PathObjectTools.containsROI(pathROI, pathPolygon)) ) {
 					continue;
 				}
-				
-				// Don't save polygon if smaller than minimum allowed area
-				double area = pathPolygon.getArea();
-				if (!(area >= minArea)) {
-					continue;
-				}
-				
+								
 				// TODO :: Make simplifications before the measurement ?
 	        	PolygonROI polygonROI;
 	        	if (simplifyShapes) {
@@ -282,9 +348,15 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 		        	int z = 0, t = 0;
 					polygonROI = ROIConverterIJ.convertToPolygonROI(polygonRoi, cal, pathImage.getDownsampleFactor(), 0, z, t);
 		        	polygonROI = ShapeSimplifier.simplifyPolygon(polygonROI, pathImage.getDownsampleFactor()/4.0);
+		        	
+		        	pathPolygon = polygonROI;
 	        	}
-	        	else 
-	        		polygonROI = pathPolygon;
+				
+				// Don't save polygon if smaller than minimum allowed area
+				double area = pathPolygon.getArea();
+				if (!(area >= minArea)) {
+					continue;
+				}
 				
 				// Create measurements
 	        	MeasurementList measurementList = MeasurementListFactory.createMeasurementList(20, MeasurementList.TYPE.FLOAT);
@@ -292,9 +364,17 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 	        	measurementList.addMeasurement("Nucleus: Perimeter", pathPolygon.getPerimeter());
 	        	measurementList.addMeasurement("Nucleus: Circularity", pathPolygon.getCircularity());
 	        	measurementList.addMeasurement("Nucleus: Solidity", pathPolygon.getSolidity()); 
+	        	
+	        	// Calculate extent
+	        	double extent = area / (pathPolygon.getBoundsHeight()*pathPolygon.getBoundsWidth());
+				measurementList.addMeasurement("Extent", extent);
+				
+				// Calculate aspect ratio
+				double aspectRatio = pathPolygon.getBoundsHeight() / pathPolygon.getBoundsWidth();
+				measurementList.addMeasurement("Aspect ratio", aspectRatio);
 				
 				// Create a simple PathDetectionObject    	
-				PathObject pathObject = new PathDetectionObject (polygonROI, null, measurementList);
+				PathObject pathObject = new PathDetectionObject (pathPolygon, null, measurementList);
 
 				// Add PathObject to the list
 				pathObjects.add(pathObject);
@@ -403,6 +483,14 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 		params.addDoubleParameter("adaptiveBlockSize", "Adaptive threshold block size", 35);
 		params.addChoiceParameter("adaptiveMethod", "Adaptive thresholding method", classList.get(0), classList, "Choose the method used for the adaptive thresholding.");
 		params.addDoubleParameter("kernelSize", "Adaptive threshold kernel size", 3);
+		
+		// Create the thresholder choice
+		String [] sList = {"Default", "Huang", "Intermodes", "IsoData", "Li", "Minimum",
+							"MaxEntropy", "Mean", "MinError", "Minimum", "Moments", "Otsu", "Percentile",
+							"RenyiEntropy", "Shanbhag", "Triangle", "Yen"};
+		List <String> thresholderList = new ArrayList<>(Arrays.asList(sList));
+		
+		params.addChoiceParameter("thresholder", "Thresholding method", "Otsu", thresholderList);
 		
 		return params;
 	}
