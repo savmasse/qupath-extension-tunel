@@ -3,7 +3,7 @@ package qupath.lib.scripting;
 import qupath.lib.classification.OpenCvClassifierCommand;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.QuPathExtension;
-
+import qupath.lib.saveDetections.SaveDetectionImagesCommand;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.input.KeyCodeCombination;
@@ -25,7 +25,7 @@ public class ThesisExtension implements QuPathExtension {
         					qupath.createPluginAction("Thresholder (experimental)", ThresholderOpenCV.class, null, false),
         					QuPathGUI.createCommandAction(new OpenCvClassifierCommand(qupath), "Classifier (experimental)", null, new KeyCodeCombination(KeyCode.A, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN)),
         					QuPathGUI.createCommandAction(new CreateParentAnnotation(qupath), "Cell Selector (experimental)", null, new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN)),
-        					QuPathGUI.createCommandAction(new CreateCellFromAnnotation(qupath), "Cell Creator (experimental)", null, new KeyCodeCombination(KeyCode.S, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN))
+        					QuPathGUI.createCommandAction(new SaveDetectionImagesCommand(qupath), "Save detections", null, new KeyCodeCombination(KeyCode.S, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN))
         		);
         
         // Experimental Non-plugin item

@@ -9,38 +9,27 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.swing.plaf.multi.MultiTableHeaderUI;
 
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Size;
-import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import groovy.transform.AutoCloneStyle;
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.measure.Calibration;
-import ij.plugin.filter.ThresholdToSelection;
 import ij.process.AutoThresholder;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
-import ij.process.StackStatistics;
-import ij.process.AutoThresholder.Method;
-import qupath.imagej.helpers.IJTools;
 import qupath.imagej.objects.PathImagePlus;
 import qupath.imagej.objects.ROIConverterIJ;
 import qupath.imagej.processing.SimpleThresholding;
-import qupath.lib.analysis.algorithms.Watershed;
-import qupath.lib.analysis.stats.StatisticsHelper;
 import qupath.lib.awt.common.AwtTools;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.Point2;
@@ -58,7 +47,6 @@ import qupath.lib.objects.helpers.PathObjectTools;
 import qupath.lib.objects.PathDetectionObject;
 import qupath.lib.plugins.AbstractTileableDetectionPlugin;
 import qupath.lib.plugins.ObjectDetector;
-import qupath.lib.plugins.objects.ShapeFeaturesPlugin;
 import qupath.lib.plugins.parameters.ParameterList;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.PolygonROI;
@@ -98,7 +86,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 			// Get the image data
 			ImageServer<BufferedImage> server = imageData.getServer();
 			BufferedImage img = server.readBufferedImage(RegionRequest.createInstance(server.getPath(), downsample, pathROI));
-		
+			
 			// Set the values of parameters given by the user
 			int medianRadius, openingRadius;
 			double gaussianSigma, minArea, threshold, adaptiveBlockSize, kernelSize;
@@ -204,7 +192,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 			
 			// Write
 			matBackground.convertTo(matBackground, CvType.CV_16U);
-			Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\background.png", matBackground);
+			//Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\background.png", matBackground);
 			
 			// Apply Gaussian filter
 //			int gaussianWidth = (int)(Math.ceil(gaussianSigma * 3) * 2 + 1);
@@ -293,7 +281,7 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 				//binary = ImagePlusToMatConverter.toMat(ipMat);
 				//binary.convertTo(binary, CvType.CV_8U, 0.00390625);
 								
-				Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\binary.png", binary);
+				//Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\binary.png", binary);
 // -- END NEW
 				
 			}
@@ -301,22 +289,22 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 				mat.convertTo(binary, CvType.CV_8U, 0.00390625);
 				Imgproc.adaptiveThreshold(binary, binary, MAX_PIXEL_VAL, ADAPTIVE_METHOD, Imgproc.THRESH_BINARY, (int) adaptiveBlockSize, 0);
 			}
-						
+					
 			
 			// Split using distance transform, if necessary
 			if (splitShape) {
 //				OpenCVTools.watershedDistanceTransformSplit(binary, openingRadius/4);
 				Imgproc.dilate(binary, binary, Imgproc.getStructuringElement(Imgproc.CV_SHAPE_ELLIPSE, new Size(kernelSize, kernelSize)));
 				Imgproc.erode(binary, binary, Imgproc.getStructuringElement(Imgproc.CV_SHAPE_ELLIPSE, new Size(kernelSize, kernelSize)));
+				
 			}
-
 
 			// Use OpenCV to find simple contours
 			List <MatOfPoint> contours = new ArrayList<>();
 			Imgproc.findContours( binary , contours, new Mat (), Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE);
 			ArrayList<Point2> points = new ArrayList<>();
 //--------
-			
+			int i = 0;
 			// Go through contours
 			for (MatOfPoint contour : contours) {
 				
@@ -350,6 +338,21 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 		        	polygonROI = ShapeSimplifier.simplifyPolygon(polygonROI, pathImage.getDownsampleFactor()/4.0);
 		        	
 		        	pathPolygon = polygonROI;
+		        	
+// PRINTING IMAGES TO DISK
+					/*
+					// Get a cropped version of the original ImageProcessor
+					ip.setRoi(polygonRoi);
+					ShortProcessor s = (ShortProcessor) ip.crop();
+					
+					// Convert f to Mat
+					Mat write = ImagePlusToMatConverter.toMat(s);
+					write.convertTo(write, CvType.CV_16U);
+					Imgcodecs.imwrite("C:\\Users\\SamVa\\Desktop\\Thesis\\data\\saved\\print_" + i + ".png", write);
+					i++;
+					*/
+		        	
+// END DISK PRINTING
 	        	}
 				
 				// Don't save polygon if smaller than minimum allowed area

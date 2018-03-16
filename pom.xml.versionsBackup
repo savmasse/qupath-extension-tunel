@@ -44,9 +44,11 @@
 		    <artifactId>ij</artifactId>
 		    <version>1.51g</version>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.deeplearning4j/deeplearning4j-core -->
 		<dependency>
-			<groupId>org.opencv</groupId>
-			<artifactId>opencv</artifactId>
+    		<groupId>org.deeplearning4j</groupId>
+    		<artifactId>deeplearning4j-core</artifactId>
+    		<version>0.9.1</version>
 		</dependency>
 
 	</dependencies>

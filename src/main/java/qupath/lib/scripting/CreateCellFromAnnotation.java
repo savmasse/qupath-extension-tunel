@@ -20,8 +20,12 @@ import qupath.lib.objects.PathDetectionObject;
 import qupath.lib.objects.PathObject;
 
 
-/*
- * This command will create a PathObject from a selected annotation.
+/**
+ * Calling this command will a detection object with the same dimensions (roi)
+ * as the currently selected annotation.
+ * 
+ * @author Sam Vanmassenhove
+ *
  */
 public class CreateCellFromAnnotation implements PathCommand {
 	
@@ -64,7 +68,7 @@ public class CreateCellFromAnnotation implements PathCommand {
 			ROI roi = p.getROI();
 			PolygonROI pathPolygon = new PolygonROI(roi.getPolygonPoints());
 					
-			// Get measurements
+			// Get some very simple measurements
 			MeasurementList measurementList = MeasurementListFactory.createMeasurementList(20, MeasurementList.TYPE.FLOAT);
         	measurementList.addMeasurement("Nucleus: Area", pathPolygon.getArea());
         	measurementList.addMeasurement("Nucleus: Perimeter", pathPolygon.getPerimeter());

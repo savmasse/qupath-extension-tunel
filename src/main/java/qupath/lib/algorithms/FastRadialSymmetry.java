@@ -1,11 +1,14 @@
 package qupath.lib.algorithms;
 
 import org.apache.commons.math3.geometry.euclidean.twod.Vector2D;
+import org.opencv.core.Core;
+import org.opencv.core.Core.MinMaxLocResult;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
 import org.opencv.imgproc.Imgproc;
 
+import groovyjarjarantlr.collections.impl.Vector;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import qupath.lib.geom.Point2;
@@ -93,13 +96,16 @@ public class FastRadialSymmetry {
 		else 
 			throw new Exception("Invalid mode in the FSR transform.");
 		
+		
+		/*
 		// Create an empty image 
 		Mat outputImage = Mat.zeros(inputImage.size(), CvType.CV_64FC1);
 		
 		Mat S = Mat.zeros(inputImage.rows() + 2 * radii, inputImage.cols() + 2 * radii, outputImage.type());
 		
-		Mat O_n = Mat.zeros(S.size(), CvType.CV_64FC1);
-		Mat M_n = Mat.zeros(S.size(), CvType.CV_64FC1);
+		Mat O = Mat.zeros(S.size(), CvType.CV_64FC1);
+		Mat M = Mat.zeros(S.size(), CvType.CV_64FC1);
+		*/
 		
 		/*
 		// Go through the pixels
@@ -133,23 +139,80 @@ public class FastRadialSymmetry {
 		}
 		*/
 		
+		/*
 		// Get all pixel values into an array
-		double [] pixels = new double[height * width];
-		double [] pixelsX = new double[gx.rows() * gx.cols()];
-		double [] pixelsY = new double[gy.rows() * gy.cols()];
-		inputImage.get(0, 0, pixels);
-		gx.get(0, 0, pixelsX);
-		gy.get(0, 0, pixelsY);
+		double [] [] pixels = new double[height][width];
+		double [] [] pixelsX = new double[gx.rows()][ gx.cols()];
+		double [] [] pixelsY = new double[gy.rows()][ gy.cols()];
+		double [] [] O_n = new double [O.rows()][O.cols()];
+		double [] [] M_n = new double [M.rows()][M.cols()];
 		
-		// Now go through the array
-		
-		for (int i = 0; i < pixels.length; i++) {
-						
-			Vector2D v = new Vector2D()
+		// Now go through the array: 
+		// There is no easy direct access to pixel values in opencv when used in java.
+		// First get all pixel data into java arrays.
+		for (int i = 0; i < height; i++) {
+			
+			// Read the data into the arrays
+			inputImage.get(i, 0, pixels[i]);
+			gx.get(i,  0, pixelsX[i]);
+			gy.get(i,  0, pixelsY[i]);
 		}
 		
+		for (int i = 0; i < height; i++)
+			for (int j = 0; j < width; j++) {
+				
+				Point p = new Point(i,j);
+				
+				double gx_norm = pixelsX[i][j];
+				double gy_norm = pixelsY[i][j];
+				
+				Vector2D g = new Vector2D(gx_norm, gy_norm);
+				double norm = g.getNorm();
+				
+				if (norm > 0) {
+					Vector2D gp = g.scalarMultiply( (1/norm) * radii);
+					
+					if (bright) {
+						Point ppve = new Point ((p.x + gp.getX() + radii), (p.y + gp.getY() + radii));
+						
+						O_n[(int) ppve.x][(int) ppve.y] = O_n[(int) ppve.x][(int) ppve.y] + 1;
+						M_n[(int) ppve.x][(int) ppve.y] = M_n[(int) ppve.x][(int) ppve.y] - norm;
+					}
+					
+					if (dark) {
+						Point pnve = new Point (p.x - gp.getX() + radii, p.y - gp.getY() + radii);
+						
+						O_n[(int) pnve.x][(int) pnve.y] = O_n[(int) pnve.x][(int) pnve.y] - 1;
+						M_n[(int) pnve.x][(int) pnve.y] = M_n[(int) pnve.x][(int) pnve.y] - norm;
+					}
+				}
+			}
+	
+		
+	// Fill back into OpenCV Mat for the next operations
+		for (int i = 0; i < height; i++) {
+			
+		}
+		*/
+		
+		// NDJ4 solution
+		
+		// Read the data from the opencv matrices
+		/*
+		double [] data = new double [width*height];
+		inputImage.get(0, 0,data);
+		int [] i = {height, width};
+		INDArray in = Nd4j.create(data, i);
+		gx.get(0, 0, data);
+		INDArray x = Nd4j.create(data, i);
+		gy.get(0, 0, data);
+		INDArray y = Nd4j.create(data, i);
+
+		INDArray norm = (x.mul(x).add(y.mul(y)));
 		
 		return outputImage;
+		*/
+		return new Mat();
 	}
 	
 	private static Mat gradX (Mat input) {
