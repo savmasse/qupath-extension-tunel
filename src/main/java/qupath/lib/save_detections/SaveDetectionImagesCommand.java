@@ -1,4 +1,4 @@
-package qupath.lib.saveDetections;
+package qupath.lib.save_detections;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -150,6 +150,10 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			
 			// Add listeners so we will be aware of changes in the image while the window is opened
 			this.qupath = qupath;
+			
+			if (qupath == null)
+				this.qupath = QuPathGUI.getInstance();
+			
 			this.qupath.addImageDataChangeListener(this);
 			this.imageData = qupath.getImageData();
 			
