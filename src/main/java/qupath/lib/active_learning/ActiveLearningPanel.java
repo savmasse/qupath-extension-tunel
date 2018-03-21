@@ -1,5 +1,6 @@
 package qupath.lib.active_learning;
 
+import java.awt.Shape;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -25,8 +26,14 @@ import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.helpers.dialogs.ParameterPanelFX;
+import qupath.lib.gui.viewer.OverlayOptions;
 import qupath.lib.gui.viewer.QuPathViewer;
+import qupath.lib.gui.viewer.QuPathViewerListener;
+import qupath.lib.gui.viewer.QuPathViewerPlus;
+import qupath.lib.gui.viewer.overlays.PathOverlay;
 import qupath.lib.images.ImageData;
+import qupath.lib.images.stores.DefaultImageRegionStore;
+import qupath.lib.images.stores.ImageRegionStore;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathAnnotationObject;
 import qupath.lib.objects.PathObject;
@@ -87,7 +94,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			hierarchy = imageData.getHierarchy();
 			hierarchy.addPathObjectListener(this);
 		}
-		pathObjectServer = new ALPathObjectServer(hierarchy, 3);
+		pathObjectServer = new ALPathObjectServer(hierarchy, 1);
 		pathObjectServer.clusterPathObjects();
 		annotationMap = new HashMap();
 		
@@ -99,8 +106,10 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		// -- Create the image viewer based on the main viewer -- //
 		pathViewer = new QuPathViewer(imageData, qupath.getViewer().getImageRegionStore(), qupath.getViewer().getOverlayOptions());
 		pathViewer.centerImage();
-		pathViewer.setImageData(imageData);
-		pathViewer.setMagnification(20);
+		//pathViewer.setImageData(imageData);
+		pathViewer.setMagnification(50);
+
+		//pathViewer.overlay
 		// Center on the first object
 //		currentObject = pathObjectServer.serveNext();
 //		pathViewer.setCenterPixelLocation(currentObject.getROI().getCentroidX(), currentObject.getROI().getCentroidY());
@@ -116,7 +125,6 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		// -- Set the parameters -- //
 		params = new ParameterList()
 				.addTitleParameter("Image settings")
-				.addBooleanParameter("cropROI", "Crop ROI", true, "Set everything outside the ROI to zero")
 				.addBooleanParameter("showROI", "Show ROI", true, "Set to false to hide the ROI")
 				.addDoubleParameter("magnification", "Set magnification", 50, "x", 10, 400, "Set the magnification of the image.");
 		
@@ -159,7 +167,9 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		List <PathClass> pathClassChoices = qupath.getAvailablePathClasses();
 		ParameterList classParameterList = new ParameterList()
 				.addChoiceParameter("classChoice", "Choose class", pathClassChoices.get(1), pathClassChoices)
-				.addBooleanParameter("addTrain", "Add to training set", true, "Add the newly classified item to the training set. Also added when the current class is kept.");
+				.addBooleanParameter("addTrain", "Add to training set", true, "Add the newly classified item to the training set. Also added when the current class is kept.")
+				.addIntParameter("clusterCount", "Number of clusters", 1, "", 1, 5, "Clustering the samples will ensure that different types of outliers are served");
+			
 		classPanel = new ParameterPanelFX(classParameterList);
 		Pane classChoicePane = classPanel.getPane();
 		HBox classBox = new HBox(classChoicePane, btnChangeClass);
@@ -324,7 +334,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		PathAnnotationObject annotation = new PathAnnotationObject(p.getROI(), p.getPathClass());
 		annotation.addPathObject(p);
 		hierarchy.addPathObject(annotation, true);
-		hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotation));
+		//hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotation));
 	}
 	
 	public GridPane getPane () {
@@ -366,7 +376,8 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		this.hierarchy = event.getHierarchy();
 		
 		// Update the object list and recluster
-		pathObjectServer = new ALPathObjectServer(hierarchy, 3);
+		int clusterCount = classPanel.getParameters().getIntParameterValue("clusterCount");
+		pathObjectServer = new ALPathObjectServer(hierarchy, clusterCount);
 		pathObjectServer.clusterPathObjects();
 	}
 
@@ -463,6 +474,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			
 			if (clusterCount < 2 || pathObjects.size() == 1) {
 				clusteredMap.put(0, pathObjects);
+				itMap.put(0, pathObjects.iterator());
 				return;
 			}
 			
