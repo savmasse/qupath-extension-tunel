@@ -202,7 +202,6 @@ public class ThresholderOpenCV extends AbstractTileableDetectionPlugin <Buffered
 			//Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_OPEN, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
 			//Imgproc.morphologyEx(mat, mat, Imgproc.MORPH_DILATE, Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(kernelSize,kernelSize)));
 
-			
 			// Threshold
 			Mat binary = new Mat();
 			if (!adaptiveThreshold) {

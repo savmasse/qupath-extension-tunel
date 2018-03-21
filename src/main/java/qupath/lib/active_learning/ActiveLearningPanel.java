@@ -1,13 +1,18 @@
 package qupath.lib.active_learning;
 
 import java.awt.image.BufferedImage;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.math3.ml.clustering.CentroidCluster;
+import org.apache.commons.math3.ml.clustering.Clusterable;
+import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +27,7 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.helpers.dialogs.ParameterPanelFX;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
+import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathAnnotationObject;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
@@ -32,8 +38,12 @@ import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent.HierarchyEve
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
 import qupath.lib.plugins.parameters.ParameterChangeListener;
 import qupath.lib.plugins.parameters.ParameterList;
+import qupath.lib.roi.AWTAreaROI;
+import qupath.lib.roi.AreaROI;
 import qupath.lib.roi.PathROIToolsAwt;
 import qupath.lib.roi.PathROIToolsAwt.CombineOp;
+import qupath.lib.roi.PolygonROI;
+import qupath.lib.roi.ROIHelpers;
 import qupath.lib.roi.interfaces.PathShape;
 
 public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDataChangeListener<BufferedImage>, ParameterChangeListener {
@@ -77,7 +87,8 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			hierarchy = imageData.getHierarchy();
 			hierarchy.addPathObjectListener(this);
 		}
-		pathObjectServer = new ALPathObjectServer(hierarchy);
+		pathObjectServer = new ALPathObjectServer(hierarchy, 3);
+		pathObjectServer.clusterPathObjects();
 		annotationMap = new HashMap();
 		
 		// -- Create a new pane -- //
@@ -199,6 +210,12 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		return next;
 	}
 	
+	public void closePanel() {
+		
+		// Stop the listeners
+		hierarchy.removePathObjectListener(this);
+	}
+	
 	private void clickConfirmClass () {
 		
 		// Serve the next PathObject and set all UI 
@@ -211,7 +228,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 	
 	private void addTotTraining (PathObject p) {
 		List <PathObject> annotationList = new ArrayList<>();
-		
+		/*
 		// Check if annotation already exists
 		if (!annotationMap.containsKey(p.getPathClass())) {
 			PathAnnotationObject annotation = new PathAnnotationObject();
@@ -225,19 +242,21 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 				if (a.getDisplayedName().equals("Active Learning") && a.getPathClass().equals(p.getPathClass())) {
 					annotation = (PathAnnotationObject) a;
 					logger.info("Discovered previous active learning annotation.");
+//					hierarchy.removeObject(annotation, true);
 				}
 			}
 			
-			//annotation.addPathObject(p);
-//			annotation.setPathClass(p.getPathClass());
-//			annotation.setROI(p.getROI());
-//			annotation.setName("Active Learning");
-//			annotationMap.put(p.getPathClass(), annotation);
 			
-			// Briefly turn off listener so event is not called
-			//hierarchy.removePathObjectListener(this);
-			//hierarchy.addPathObject(annotation, true);
-			//hierarchy.addPathObjectListener(this);
+			
+			
+			// Remove from parent and change the parent ROI
+			PathAnnotationObject parent = (PathAnnotationObject) p.getParent();
+			if (parent.getDisplayedName().equals("Active Learning") && (parent != null || parent.equals(hierarchy.getRootObject()))) {
+				parent.removePathObject(p);
+//				AWTAreaROI parentArea = new AWTAreaROI(PathROIToolsAwt.getShape(parent.getROI()));
+//				AWTAreaROI pArea = new AWTAreaROI(PathROIToolsAwt.getShape(p.getROI()));
+//				parent.setROI(PathROIToolsAwt.combineROIs((PathShape) parentArea, (PathShape) pArea, CombineOp.SUBTRACT));
+			}
 			
 			annotation.setROI(p.getROI());
 			annotation.addPathObject(p);
@@ -248,25 +267,39 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			// Now add to the hierarchy without triggering a hierarchy event
 			//hierarchy.removePathObjectListener(this);
 			hierarchy.addPathObject(annotation, true);
+			hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotation));
 			//hierarchy.addPathObjectListener(this);
 		}
 		else {
 		
 			PathAnnotationObject annotationObject = new PathAnnotationObject(annotationMap.get(p.getPathClass()).getROI());
+			hierarchy.removeObject(annotationMap.get(p.getPathClass()), true);
+
+			// Remove from the parent (if has one)
+			PathAnnotationObject parent = (PathAnnotationObject) p.getParent();
+			if (parent.getDisplayedName().equals("Active Learning") && (parent != null || parent.equals(hierarchy.getRootObject()))) {
+				parent.removePathObject(p);
+//				PolygonROI parentROI = new PolygonROI(parent.getROI().getPolygonPoints());
+//				PolygonROI pROI = new PolygonROI(p.getROI().getPolygonPoints());
+//				AWTAreaROI parentArea = new AWTAreaROI(PathROIToolsAwt.getShape(parent.getROI()));
+//				AWTAreaROI pArea = new AWTAreaROI(PathROIToolsAwt.getShape(p.getROI()));
+//				parent.setROI(PathROIToolsAwt.combineROIs((PathShape) parentArea, (PathShape) pArea, CombineOp.SUBTRACT));
+			}
 			
 			annotationObject.setPathClass(p.getPathClass());
 			annotationObject.setROI(PathROIToolsAwt.combineROIs((PathShape) annotationObject.getROI(), (PathShape) p.getROI(), CombineOp.ADD));
 			annotationObject.addPathObject(p);
 			annotationObject.setName("Active Learning");
-			
+						
 			// Force a hierarchy update with the new data
 			//hierarchy.removePathObjectListener(this);
-			hierarchy.removeObject(annotationMap.get(p.getPathClass()), true);
+//			hierarchy.removeObject(annotationMap.get(p.getPathClass()), true);
 			hierarchy.addPathObject(annotationObject, true);
 			//hierarchy.addPathObjectListener(this);
 			
 			// Force update of the map
 			annotationMap.put(p.getPathClass(), annotationObject);
+			hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotationObject));
 
 //			// The following is really not pretty; but I really don't know how to add PathObjects to training set in another way...
 //			PathAnnotationObject annotation = annotationMap.get(p.getPathClass());
@@ -285,6 +318,13 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		}
 		
 		logger.info("PathObject added to class " + p.getPathClass() + ".");
+		*/
+		
+		// Temporary setup: Add each element separately
+		PathAnnotationObject annotation = new PathAnnotationObject(p.getROI(), p.getPathClass());
+		annotation.addPathObject(p);
+		hierarchy.addPathObject(annotation, true);
+		hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotation));
 	}
 	
 	public GridPane getPane () {
@@ -326,8 +366,8 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		this.hierarchy = event.getHierarchy();
 		
 		// Update the object list and recluster
-		//pathObjectServer = new ALPathObjectServer(hierarchy);
-		//pathObjectServer.clusterPathObjects();
+		pathObjectServer = new ALPathObjectServer(hierarchy, 3);
+		pathObjectServer.clusterPathObjects();
 	}
 
 	@Override
@@ -367,6 +407,8 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 	 * PathObjects in the current hierarchy and alternate between clusters when
 	 * serving objects.
 	 * 
+	 * This clustering is based on the random sample server in the standard QuPath release.
+	 * 
 	 * @author Sam Vanmassenhove
 	 *
 	 */
@@ -376,16 +418,20 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		
 		private List <PathObject> pathObjects;
 		private Map <Integer, List <PathObject>> clusteredMap;
+		private Map <Integer, Iterator<PathObject>> itMap;
 		
-		private int currentCluster = -1;
+		private Integer currentCluster = Integer.valueOf(0);
+		private int clusterCount;
 		private PathObject currentObject;
-		private Iterator<PathObject> it;
 		
 		
-		public ALPathObjectServer (PathObjectHierarchy hierarchy) {
+		public ALPathObjectServer (PathObjectHierarchy hierarchy, final int clusterCount) {
+			
 			// Init 
 			pathObjects = new ArrayList<>();
 			clusteredMap = new HashMap<>();
+			itMap = new HashMap<>();
+			this.clusterCount = clusterCount;
 			
 			// Create a list of all objects in the current hierarchy
 			List <PathObject> tempList = hierarchy.getFlattenedObjectList(null);
@@ -403,8 +449,6 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 				pathObjects.add(p);
 			}
 			
-			// Create an iterator
-			it = pathObjects.iterator();
 		} 
 		
 		public List <PathObject> getObjects () {
@@ -413,15 +457,121 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		
 		public void clusterPathObjects () {
 			
+			if (pathObjects.isEmpty()) {
+				return;
+			}
+			
+			if (clusterCount < 2 || pathObjects.size() == 1) {
+				clusteredMap.put(0, pathObjects);
+				return;
+			}
+			
+			KMeansPlusPlusClusterer<ClusterableObject> km = new KMeansPlusPlusClusterer<>(clusterCount);
+			List<ClusterableObject> clusterableObjects = new ArrayList<>();
+			
+			for (PathObject p : pathObjects) {
+				clusterableObjects.add(new ClusterableObject(p,p.getMeasurementList().getMeasurementNames()));
+			}
+			logger.info("Added " + clusterableObjects.size() + " to the clusterable list.");
+			
+			List<CentroidCluster<ClusterableObject>> results = km.cluster(clusterableObjects);
+			logger.info("Clustered objects");
+			
+			int i = 0;
+			for (CentroidCluster<ClusterableObject> cenCluster : results) {
+				Integer label = Integer.valueOf(i);
+				List <PathObject> objects = new  ArrayList<>();
+				for (ClusterableObject c : cenCluster.getPoints()) {
+					objects.add(c.getPathObject());
+				}
+				clusteredMap.put(label, objects);
+				i++;
+			}
+			
+			
+			// Now sort each cluster according to probability
+			for (List<PathObject> pList : clusteredMap.values()) {
+				List <PathObject> newList = new ArrayList<>();
+				
+				Collections.sort(newList, new Comparator<PathObject>() {
+				    @Override
+				    public int compare(PathObject lhs, PathObject rhs) {
+				        // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
+				        return Double.compare(lhs.getClassProbability(), rhs.getClassProbability()); // Use double compare to safely handle NaN and Infinity
+				    }
+				}.reversed()); // Reverse: we want smallest first
+			}
+			
+			// Create a new iterator for each cluster
+			for (Integer k : clusteredMap.keySet()) {
+				itMap.put(k, clusteredMap.get(k).iterator());
+			}
+			
+			// Let user know what happened here (for debugging purposes)
+			for (Integer k : clusteredMap.keySet()) {
+				logger.info(" Cluster " + k + ": " + clusteredMap.get(k).size() + " items.");
+			}
+			
 		}
 		
 		public PathObject serveNext () {
 			
-			if (it.hasNext()) {
-				return it.next();
+			// Serve from the current cluster
+			Iterator<PathObject> it = itMap.get(currentCluster);
+			
+			if (!it.hasNext()) {
+				logger.info ("Reached end of cluster n°" + clusterCount + ".");
+				return currentObject;
 			}
 			
-			return currentObject;
+			PathObject servedObject = it.next();
+
+			logger.info("Served PathObject from cluster n° " + currentCluster + ".");
+			
+			// Increment the current cluster
+			currentCluster++;
+			if (currentCluster >= clusterCount)
+				currentCluster = 0;
+			
+			currentObject = servedObject;
+			logger.info("Probability: " + servedObject.getClassProbability());
+			
+			return servedObject;
+		}
+		
+	}
+	
+	/**
+	 * 
+	 * @author Pete Bankhead
+	 *
+	 */
+	static class ClusterableObject implements Clusterable {
+		
+		private PathObject pathObject;
+		private double[] point;
+		
+		public ClusterableObject(final PathObject pathObject, final List<String> measurements) {
+			this.pathObject = pathObject;
+			point = new double[measurements.size()];
+			MeasurementList ml = pathObject.getMeasurementList();
+			for (int i = 0; i < measurements.size(); i++) {
+				point[i] = ml.getMeasurementValue(measurements.get(i));
+			}
+		}
+		
+		public ClusterableObject(final PathObject pathObject, final double[] features) {
+			this.pathObject = pathObject;
+			point = features.clone();
+		}
+		
+		public PathObject getPathObject() {
+			return pathObject;
+		}
+
+		@Override
+		public double[] getPoint() {
+			return point;
 		}
 		
 	}

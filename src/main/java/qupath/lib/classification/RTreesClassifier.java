@@ -126,20 +126,18 @@ public class RTreesClassifier extends ParameterizableOpenCvClassifier<RTrees> im
 			}
 			else {
 				// Print the probability
-				//logger.info("Probability : " + probability);	
+				logger.info("Probability : " + probability);	
 				
 				// Set the class to "Doubt"
-				//pathClass = PathClassFactory.getPathClass("Doubt");
-				//pathObject.setPathClass(pathClass);
+				pathClass = PathClassFactory.getPathClass("Doubt");
+				pathObject.setPathClass(pathClass);
+				
+//				logger.info("Set pathObject class to " + pathObject.getPathClass());
 
 			}
 			
-			logger.info("Probability : " + probability);	
-			logger.info("Results: " + results.dump());
-
-			
 		} else
-			logger.info("Results: " + results.dump());
+//			logger.info("Results: " + results.dump());
 
 			super.setPredictedClass(classifier, pathClasses, samples, results, pathObject);
 	}

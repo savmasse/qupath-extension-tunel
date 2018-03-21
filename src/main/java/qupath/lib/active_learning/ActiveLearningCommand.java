@@ -73,6 +73,8 @@ public class ActiveLearningCommand  implements PathCommand {
 		if (panel == null)
 			return;
 		qupath.removeImageDataChangeListener(panel);
+		panel.closePanel(); // Removes the hierarchy listener
+		
 		if (dialog != null) 
 			dialog.setOnCloseRequest(null);
 		dialog = null;
