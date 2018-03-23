@@ -51,13 +51,12 @@
 			<artifactId>opencv</artifactId>
 		</dependency>
 		
-		<!-- https://mvnrepository.com/artifact/org.deeplearning4j/deeplearning4j-core
+		<!-- https://mvnrepository.com/artifact/org.deeplearning4j/deeplearning4j-core -->
 		<dependency>
 		    <groupId>org.deeplearning4j</groupId>
     		<artifactId>deeplearning4j-core</artifactId>
     		<version>0.9.1</version>
 		</dependency>
-		-->
 		
 		<!-- https://mvnrepository.com/artifact/org.nd4j/nd4j-native-platform
 		<dependency>

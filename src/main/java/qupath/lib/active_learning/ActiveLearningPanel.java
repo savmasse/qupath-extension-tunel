@@ -49,6 +49,7 @@ import qupath.lib.roi.AWTAreaROI;
 import qupath.lib.roi.AreaROI;
 import qupath.lib.roi.PathROIToolsAwt;
 import qupath.lib.roi.PathROIToolsAwt.CombineOp;
+import qupath.lib.roi.PointsROI;
 import qupath.lib.roi.PolygonROI;
 import qupath.lib.roi.ROIHelpers;
 import qupath.lib.roi.interfaces.PathShape;
@@ -78,7 +79,6 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 	private Map <PathClass, PathAnnotationObject> annotationMap;
 	
 	private QuPathViewer pathViewer;
-	
 	
 	public ActiveLearningPanel (final QuPathGUI qupath) {
 		
@@ -333,8 +333,10 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		// Temporary setup: Add each element separately
 		PathAnnotationObject annotation = new PathAnnotationObject(p.getROI(), p.getPathClass());
 		annotation.addPathObject(p);
+		// Briefly turn off listener so this doesn't cause a clustering update
+		hierarchy.removePathObjectListener(this);
 		hierarchy.addPathObject(annotation, true);
-		//hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotation));
+		hierarchy.addPathObjectListener(this); // Turn listener back on
 	}
 	
 	public GridPane getPane () {

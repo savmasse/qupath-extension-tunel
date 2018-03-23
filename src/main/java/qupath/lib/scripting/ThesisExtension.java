@@ -1,6 +1,8 @@
 package qupath.lib.scripting;
 
 import qupath.lib.active_learning.ActiveLearningCommand;
+import qupath.lib.algorithms.WatershedDetectionFRS;
+import qupath.lib.algorithms.WatershedDetectionFRSIJ;
 import qupath.lib.classification.OpenCvClassifierCommand;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.QuPathExtension;
@@ -24,6 +26,7 @@ public class ThesisExtension implements QuPathExtension {
         					qupath.createPluginAction("Watershed (experimental)", WatershedCellDetection.class, null, false),
         					qupath.createPluginAction("Watershed (old)", WatershedCellDetection2.class, null, false),
         					qupath.createPluginAction("Thresholder (experimental)", ThresholderOpenCV.class, null, false),
+        					qupath.createPluginAction("FRS (experimental)", WatershedDetectionFRSIJ.class, null, false),
         					QuPathGUI.createCommandAction(new OpenCvClassifierCommand(qupath), "Classifier (experimental)", null, new KeyCodeCombination(KeyCode.A, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN)),
         					QuPathGUI.createCommandAction(new ActiveLearningCommand(qupath), "Active learning", null, new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN)),
         					QuPathGUI.createCommandAction(new SaveDetectionImagesCommand(qupath), "Save detections", null, new KeyCodeCombination(KeyCode.S, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN))
