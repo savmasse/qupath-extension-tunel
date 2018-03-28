@@ -22,6 +22,7 @@ import jfxtras.scene.layout.GridPane;
 import jfxtras.scene.layout.HBox;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
+import qupath.lib.geom.Point2;
 import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
 import qupath.lib.gui.QuPathGUI;
@@ -31,11 +32,13 @@ import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.gui.viewer.QuPathViewerListener;
 import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.gui.viewer.overlays.PathOverlay;
+import qupath.lib.gui.viewer.tools.PointsTool;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.stores.DefaultImageRegionStore;
 import qupath.lib.images.stores.ImageRegionStore;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathAnnotationObject;
+import qupath.lib.objects.PathDetectionObject;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.classes.PathClassFactory;
@@ -52,6 +55,8 @@ import qupath.lib.roi.PathROIToolsAwt.CombineOp;
 import qupath.lib.roi.PointsROI;
 import qupath.lib.roi.PolygonROI;
 import qupath.lib.roi.ROIHelpers;
+import qupath.lib.roi.RoiEditor;
+import qupath.lib.roi.interfaces.PathPoints;
 import qupath.lib.roi.interfaces.PathShape;
 
 public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDataChangeListener<BufferedImage>, ParameterChangeListener {
@@ -94,7 +99,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			hierarchy = imageData.getHierarchy();
 			hierarchy.addPathObjectListener(this);
 		}
-		pathObjectServer = new ALPathObjectServer(hierarchy, 1);
+		pathObjectServer = new ALPathObjectServer(hierarchy);
 		pathObjectServer.clusterPathObjects();
 		annotationMap = new HashMap();
 		
@@ -145,7 +150,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		// -- Create buttons -- //
 		btnChangeClass = new Button("Set class");
 		btnChangeClass.setTooltip(new Tooltip("Change class to the class selected in the list.") );
-		btnConfirmClass = new Button ("Skip");
+		btnConfirmClass = new Button ("Confirm");
 		btnConfirmClass.setTooltip(new Tooltip ("Keep the current classification.") );
 		
 		// -- Handle button clicks -- //
@@ -158,7 +163,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		classPane = new HBox(10);
 		classPane.add(btnConfirmClass);
 		classLabel = new Label("Class : ");
-		classLabel.setPadding(new Insets (5, 0, 0, 10));
+		classLabel.setPadding(new Insets (5, 0, 0, 2));
 		classLabel.setTooltip(new Tooltip ("The class this object is currently classified as. Probability between brackets."));
 		classPane.add(classLabel);
 		classPane.setPadding(new Insets (10, 0, 0, 0));
@@ -171,6 +176,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 				.addIntParameter("clusterCount", "Number of clusters", 1, "", 1, 5, "Clustering the samples will ensure that different types of outliers are served");
 			
 		classPanel = new ParameterPanelFX(classParameterList);
+		classPanel.addParameterChangeListener(this);
 		Pane classChoicePane = classPanel.getPane();
 		HBox classBox = new HBox(classChoicePane, btnChangeClass);
 		classBox.setPadding(new Insets (10, 10, 10, 10));
@@ -191,7 +197,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		PathObject next = setupNext();
 		
 		// Set the class of the currentObject
-		currentObject.setPathClass( (PathClass) classPanel.getParameters().getChoiceParameterValue("classChoice") ); 
+		currentObject.setPathClass( (PathClass) classPanel.getParameters().getChoiceParameterValue("classChoice") , 1.0); 
 		
 		// Add current object to training set if required
 		if (classPanel.getParameters().getBooleanParameterValue("addTrain"))
@@ -224,9 +230,14 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		
 		// Stop the listeners
 		hierarchy.removePathObjectListener(this);
+		paramPanel.removeParameterChangeListener(this);
+		classPanel.removeParameterChangeListener(this);
 	}
 	
 	private void clickConfirmClass () {
+		
+		// Set probability to 1 so item goes to back of queue
+		currentObject.setPathClass(currentObject.getPathClass(), 1.0);
 		
 		// Serve the next PathObject and set all UI 
 		currentObject = setupNext();
@@ -330,6 +341,92 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		logger.info("PathObject added to class " + p.getPathClass() + ".");
 		*/
 		
+		
+		PointsROI point = new PointsROI(p.getROI().getCentroidX(), p.getROI().getCentroidY());
+		PathAnnotationObject annotation = null;
+		
+		// Check if annotation already exists
+		if (!annotationMap.containsKey(p.getPathClass())) {
+			
+			// Check if an annotation already exists from a previous active learning session
+			annotationList = hierarchy.getDescendantObjects(hierarchy.getRootObject(), annotationList, PathAnnotationObject.class);
+			for (PathObject a : annotationList) {
+				if (! (a instanceof PathAnnotationObject) )
+					continue;
+				
+				if (a.getDisplayedName().equals("Active Learning") && a.getPathClass().equals(p.getPathClass())) {
+					annotation = (PathAnnotationObject) a;
+					logger.info("Discovered previous active learning annotation.");
+//							hierarchy.removeObject(annotation, true);
+				}
+			}
+			
+			// If we have found a previous annotation, then continue with this one; otherwise make a new one
+			if (annotation == null) {
+				annotation = new PathAnnotationObject();
+				annotation.setName("Active Learning");
+				annotation.setPathClass(p.getPathClass());
+				annotation.setROI(point);
+				
+				// Add the new annotation to the hierarchy
+				hierarchy.addPathObject(annotation, true);
+
+			}
+			
+			// Add to the map
+			annotationMap.put(p.getPathClass(), annotation);
+
+			// Add a new pathObject as a point
+			PathObject temp = new PathDetectionObject(point);
+			temp.setPathClass(p.getPathClass());
+			annotation.addPathObject(temp);
+		}
+		else {
+			
+			// Go through the current annotations and remove the new point if its already in there
+			for (PathAnnotationObject a : annotationMap.values()) {
+				
+				List <Point2> points = new ArrayList<>();
+				Collections.copy(a.getROI().getPolygonPoints(), points); // Get a copy because the list is unmodifiable
+				
+				if (points.contains(point.getPointList().get(0))) {
+					// Remove the point from the ROI
+					points.remove(point.getPointList().get(0));
+					
+					// Now find the corresponding pathObject to remove
+					for (PathObject pathObject : a.getChildObjects()) {
+						if (new PointsROI(p.getROI().getCentroidX(), p.getROI().getCentroidY()).equals(point)) {
+							a.removePathObject(pathObject);
+							a.setROI(new PointsROI(points));
+							logger.info("Removed the object from another annotation.");
+						}
+					}
+				}
+			}
+			
+			// We already have an annotation in the map
+			annotation = annotationMap.get(p.getPathClass());
+			
+			// Add a new pathObject
+			PathObject temp = new PathDetectionObject(point);
+			temp.setPathClass(p.getPathClass());
+			
+			annotation.addPathObject(temp);
+			
+			// Set the ROI of the annotation
+			List <Point2> points = new ArrayList<>();
+			points.add(point.getPointList().get(0));
+			points.addAll(annotation.getROI().getPolygonPoints());
+			
+			annotation.setROI( new PointsROI (points) );	
+		}
+
+		// Force an update; but turn local listener off so we don't recluster
+		hierarchy.removePathObjectListener(this);
+		hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(annotation));
+		hierarchy.addPathObjectListener(this);
+		
+		/*
 		// Temporary setup: Add each element separately
 		PathAnnotationObject annotation = new PathAnnotationObject(p.getROI(), p.getPathClass());
 		annotation.addPathObject(p);
@@ -337,6 +434,8 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		hierarchy.removePathObjectListener(this);
 		hierarchy.addPathObject(annotation, true);
 		hierarchy.addPathObjectListener(this); // Turn listener back on
+		*/
+		
 	}
 	
 	public GridPane getPane () {
@@ -379,7 +478,8 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		
 		// Update the object list and recluster
 		int clusterCount = classPanel.getParameters().getIntParameterValue("clusterCount");
-		pathObjectServer = new ALPathObjectServer(hierarchy, clusterCount);
+		pathObjectServer = new ALPathObjectServer(hierarchy);
+		pathObjectServer.setClusterCount(clusterCount);
 		pathObjectServer.clusterPathObjects();
 	}
 
@@ -391,6 +491,7 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		if (key.equals("showROI")) {
 			//pathViewer.getOverlayOptions().setShowAnnotations(params.getBooleanParameterValue(key));
 			// Lazy solution to have changes in the main viewer not affect this viewer: just turn off the whole overlay
+			// TODO :: Find another way to have the Viewer be completely independent
 			pathViewer.setShowMainOverlay(params.getBooleanParameterValue(key));
 			
 			// If there's an element selected; remove this as well
@@ -410,6 +511,13 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		// Set the magnification
 		if (key.equals("magnification") ) {
 			pathViewer.setMagnification(params.getDoubleParameterValue(key));
+		}
+		
+		// Recluster if clusterCount slider is adjusted
+		if (key.equals("clusterCount")) {
+			int clusterCount = classPanel.getParameters().getIntParameterValue(key);
+			pathObjectServer.setClusterCount(clusterCount);
+			pathObjectServer.clusterPathObjects();
 		}
 	}
 	
@@ -434,17 +542,15 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 		private Map <Integer, Iterator<PathObject>> itMap;
 		
 		private Integer currentCluster = Integer.valueOf(0);
-		private int clusterCount;
 		private PathObject currentObject;
+		private int clusterCount = 1;
 		
-		
-		public ALPathObjectServer (PathObjectHierarchy hierarchy, final int clusterCount) {
+		public ALPathObjectServer (PathObjectHierarchy hierarchy) {
 			
 			// Init 
 			pathObjects = new ArrayList<>();
 			clusteredMap = new HashMap<>();
 			itMap = new HashMap<>();
-			this.clusterCount = clusterCount;
 			
 			// Create a list of all objects in the current hierarchy
 			List <PathObject> tempList = hierarchy.getFlattenedObjectList(null);
@@ -458,6 +564,10 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 				if (p.getPathClass() == null || p.getPathClass().equals(PathClassFactory.getPathClass("Image")) )
 					continue;
 				
+				// Filter out PointROIs
+				if (p.getROI() instanceof PointsROI)
+					continue;
+				
 				// Add to the actual list
 				pathObjects.add(p);
 			}
@@ -468,15 +578,31 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			return pathObjects;
 		}
 		
+		public void setClusterCount (final int clusterCount) {
+			this.clusterCount = clusterCount;
+		}
+		
 		public void clusterPathObjects () {
 			
-			if (pathObjects.isEmpty()) {
+			if (pathObjects.isEmpty() || pathObjects.size() == 1) {
 				return;
 			}
 			
-			if (clusterCount < 2 || pathObjects.size() == 1) {
+			if (clusterCount < 2) {
+				
+				// Sort the objects
+				Collections.sort(pathObjects, new Comparator<PathObject>() {
+				    @Override
+				    public int compare(PathObject lhs, PathObject rhs) {
+				        // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
+				        return Double.compare(lhs.getClassProbability(), rhs.getClassProbability()); // Use double compare to safely handle NaN and Infinity
+				    }
+				}.reversed()); // Reverse: we want smallest first
+				
+				// Set the map
 				clusteredMap.put(0, pathObjects);
 				itMap.put(0, pathObjects.iterator());
+				
 				return;
 			}
 			
@@ -505,9 +631,9 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			
 			// Now sort each cluster according to probability
 			for (List<PathObject> pList : clusteredMap.values()) {
-				List <PathObject> newList = new ArrayList<>();
+				//List <PathObject> newList = new ArrayList<>();
 				
-				Collections.sort(newList, new Comparator<PathObject>() {
+				Collections.sort(pList, new Comparator<PathObject>() {
 				    @Override
 				    public int compare(PathObject lhs, PathObject rhs) {
 				        // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
@@ -521,10 +647,10 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 				itMap.put(k, clusteredMap.get(k).iterator());
 			}
 			
-			// Let user know what happened here (for debugging purposes)
-			for (Integer k : clusteredMap.keySet()) {
-				logger.info(" Cluster " + k + ": " + clusteredMap.get(k).size() + " items.");
-			}
+			// Let user know what happened
+//			for (Integer k : clusteredMap.keySet()) {
+//				logger.info(" Cluster " + k + ": " + clusteredMap.get(k).size() + " items.");
+//			}
 			
 		}
 		
@@ -534,7 +660,12 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 			Iterator<PathObject> it = itMap.get(currentCluster);
 			
 			if (!it.hasNext()) {
-				logger.info ("Reached end of cluster n°" + clusterCount + ".");
+				logger.info ("Reached end of cluster n°" + currentCluster + ".");
+				
+				currentCluster++;
+				if (currentCluster >= clusterCount)
+					currentCluster = 0;
+				
 				return currentObject;
 			}
 			
@@ -548,7 +679,6 @@ public class ActiveLearningPanel implements PathObjectHierarchyListener, ImageDa
 				currentCluster = 0;
 			
 			currentObject = servedObject;
-			logger.info("Probability: " + servedObject.getClassProbability());
 			
 			return servedObject;
 		}
