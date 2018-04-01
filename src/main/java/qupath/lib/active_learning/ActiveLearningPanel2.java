@@ -1,6 +1,7 @@
 package qupath.lib.active_learning;
 
 import java.awt.image.BufferedImage;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -9,11 +10,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
 import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.controlsfx.control.action.Action;
 import org.controlsfx.control.action.ActionUtils;
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.cpu.nativecpu.NDArray;
+import org.nd4j.linalg.dimensionalityreduction.PCA;
+import org.nd4j.linalg.factory.Nd4j;
+import org.opencv.imgproc.Imgproc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +37,7 @@ import javafx.scene.layout.Pane;
 import jfxtras.scene.layout.HBox;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
+import qupath.lib.classifiers.PathClassificationLabellingHelper;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
@@ -248,8 +256,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		pathViewer.setCenterPixelLocation(currentObject.getROI().getCentroidX(), currentObject.getROI().getCentroidY());
 		// Select the current object
 		hierarchy.getSelectionModel().setSelectedObject(currentObject);
-		
-		logger.info("Focused on and selected the current object.");
+
 	}
 	
 	private void clickShowPlot () {
@@ -281,6 +288,8 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		pathViewer.setCenterPixelLocation(next.getROI().getCentroidX(), next.getROI().getCentroidY());
 		// Repaint the image after a change
 		pathViewer.repaintEntireImage();
+		// Select new object
+		hierarchy.getSelectionModel().setSelectedObject(next);
 		
 		// Set the current class label
 //		lblClass.setText("Class: " + next.getPathClass());
@@ -627,11 +636,20 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				return;
 			}
 			
+			// Setup the clusterer
 			KMeansPlusPlusClusterer<ClusterableObject> km = new KMeansPlusPlusClusterer<>(clusterCount);
 			List<ClusterableObject> clusterableObjects = new ArrayList<>();
 			
-			for (PathObject p : pathObjects) {
-				clusterableObjects.add(new ClusterableObject(p,p.getMeasurementList().getMeasurementNames()));
+			// Create a complete feature matrix of the PathObjects
+			INDArray matrix = createFeatureMatrix();
+			
+			// Perform dimensionality reduction
+			INDArray pca = PCA.pca(matrix, 2, false);
+			
+			// Set the points of the Clusterable Objects
+			for (int i = 0; i < pathObjects.size(); i++) {
+				PathObject p = pathObjects.get(i);
+				clusterableObjects.add(new ClusterableObject(p, pca.getRow(i).dup().data().asDouble()));
 			}
 			logger.info("Added " + clusterableObjects.size() + " to the clusterable list.");
 			
@@ -675,6 +693,44 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			}
 			
 		}
+		
+		private INDArray createFeatureMatrix () {
+			
+			// Create a list
+			List <INDArray> arrayList = new ArrayList<>();
+			INDArray ind = null;
+			
+			// Go through the objects
+			for (PathObject p : pathObjects) {
+				 
+				// Read all meaningful measurements
+				List <Double> temp = new ArrayList<>();
+				for (int i = 0; i < p.getMeasurementList().size(); i++) {
+					
+					// Throw out everything that isn't a shape factor 
+					if (!p.getMeasurementList().getMeasurementName(i).contains("Centroid")
+						&& !p.getMeasurementList().getMeasurementName(i).contains("Cell")
+						&& !p.getMeasurementList().getMeasurementName(i).contains("Cytoplasm")
+						&& !p.getMeasurementList().getMeasurementName(i).contains("Channel")
+						) {
+						
+						temp.add (p.getMeasurementList().getMeasurementValue(i));
+					}
+				}
+				
+				Double [] d = new Double [temp.size()];
+				temp.toArray(d);
+				ind = Nd4j.create(ArrayUtils.toPrimitive(d));
+				arrayList.add(ind);
+			}
+			
+			// Create a matrix from the array
+			INDArray matrix = Nd4j.create(arrayList, new int [] {arrayList.size(), arrayList.get(0).length()});
+			
+			// Return the matrix
+			return matrix;
+		}
+		
 		
 		public PathObject serveNext () {
 			
@@ -807,7 +863,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 					
 					XYChart.Data<Number, Number> data = new XYChart.Data(c.getPoint()[0], c.getPoint()[1], c);
 			        Region plotpoint = new Region();
-			        plotpoint.setShape(new Circle(4.0));
+			        plotpoint.setShape(new Circle(6.0));
 			        data.setNode(plotpoint);
 			        
 					series.getData().add(data);
@@ -821,11 +877,15 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	        for (Series <Number, Number> series: sc.getData()){
 	            for (XYChart.Data<Number, Number> item: series.getData()){
 	                item.getNode().setOnMousePressed((MouseEvent event) -> {
-	                    logger.info("You clicked " + item.toString()+series.toString());
-	                    if (item.getNode().getEffect() == null)
-	                    	item.getNode().setEffect(new DropShadow());
-	                    else 
-	                    	item.getNode().setEffect(null);
+//	                    logger.info("You clicked " + item.toString()+series.toString());
+//	                    if (item.getNode().getEffect() == null)
+//	                    	item.getNode().setEffect(new DropShadow());
+//	                    else 
+//	                    	item.getNode().setEffect(null);
+//	                    
+	                	// Select the clicked item in the Viewer
+	                    PathObject p = ((ClusterableObject) item.getExtraValue()).getPathObject();
+	                    QuPathGUI.getInstance().getImageData().getHierarchy().getSelectionModel().setSelectedObject(p);
 	                });
 	            }
 	        }
@@ -833,10 +893,6 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			// Update the axes: set the range automatically
 			xAxis.autoRangingProperty().set(true);
 			yAxis.autoRangingProperty().set(true);
-		}
-		
-		private void updateScatterPlot () {
-			
 		}
 		
 		public void addSeries (Series <Number, Number> series) {
