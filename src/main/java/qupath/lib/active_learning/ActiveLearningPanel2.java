@@ -38,6 +38,7 @@ import jfxtras.scene.layout.HBox;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import qupath.lib.classifiers.PathClassificationLabellingHelper;
+import qupath.lib.classifiers.PathClassifierTools;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
@@ -45,6 +46,7 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.QuPathGUI.GUIActions;
 import qupath.lib.gui.helpers.PanelToolsFX;
 import qupath.lib.gui.helpers.dialogs.ParameterPanelFX;
+import qupath.lib.gui.panels.classify.PathClassifierPanel;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.measurements.MeasurementList;
@@ -256,7 +258,9 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		pathViewer.setCenterPixelLocation(currentObject.getROI().getCentroidX(), currentObject.getROI().getCentroidY());
 		// Select the current object
 		hierarchy.getSelectionModel().setSelectedObject(currentObject);
-
+		
+		PathClassificationLabellingHelper.getAnnotationsForClass(hierarchy, currentObject.getPathClass()).add(currentObject);
+		hierarchy.fireObjectClassificationsChangedEvent(this, Collections.singleton(currentObject));
 	}
 	
 	private void clickShowPlot () {

@@ -64,14 +64,6 @@ public class ActiveLearningCommand2 implements PathCommand {
 			
 			BorderPane pane = new BorderPane();
 			pane.setCenter(panel.getPane());
-			
-			Action actionTest = new Action("TestButton", e -> {
-				logger.info("Clicked Test button !");
-			});
-			
-//
-//			pane.setCenter(buttonPanelColumn);
-//			pane.setBottom(buttonPanelRow);
 			pane.setPadding(new Insets(10, 10, 10, 10));
 			
 			ScrollPane scrollPane = new ScrollPane(pane);
@@ -81,44 +73,6 @@ public class ActiveLearningCommand2 implements PathCommand {
 			Scene scene = new Scene(scrollPane);
 			scene.getStylesheets().add(getClass().getResource("active_learning.css").toExternalForm());
 			dialog.setScene(scene);
-			
-//	        final NumberAxis xAxis = new NumberAxis(0, 10, 1);
-//	        final NumberAxis yAxis = new NumberAxis(0, 10, 1);        
-//	        final ScatterChart<Number,Number> sc = new ScatterChart<Number,Number>(xAxis,yAxis);
-//	        xAxis.setLabel("Feature 1");                
-//	        yAxis.setLabel("Feature 2");
-//	        sc.setTitle("Clustering plot");
-//	       
-//	        XYChart.Series<Number, Number> series1 = new XYChart.Series<>();
-//
-//	        series1.setName("Series 1");
-//	        List <XYChart.Data<Number, Number>> data = new ArrayList<>();
-//	        for (int i = 0; i < 10; i++) {
-//	        	data.add(new XYChart.Data(i,i));
-//	        }
-//	        series1.getData().addAll(data);
-//	        sc.setPrefSize(500, 400);
-//	        sc.getData().addAll(series1);
-//	        
-//	        // Get a mouseclickevent for the chart
-//	        for (Series <Number, Number> serie: sc.getData()){
-//	            for (XYChart.Data<Number, Number> item: serie.getData()){
-//	                item.getNode().setOnMousePressed((MouseEvent event) -> {
-//	                    logger.info("You clicked " + item.toString()+serie.toString());
-//	                    if (item.getNode().getEffect() == null)
-//	                    	item.getNode().setEffect(new DropShadow());
-//	                    else 
-//	                    	item.getNode().setEffect(null);
-//	                });
-//	            }
-//	        }
-//	        
-//	        SplitPane splitPane = new SplitPane();
-//	        splitPane.getItems().add(sc);
-//	        splitPane.getItems().add(pane);
-	        
-//	        dialog.setScene(new Scene(sc));
-//	        dialog.setScene(new Scene(splitPane));
 			
 			// Closing the dialog
 			dialog.setOnCloseRequest(e -> {
