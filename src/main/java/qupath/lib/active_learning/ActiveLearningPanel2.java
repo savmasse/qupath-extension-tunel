@@ -16,6 +16,7 @@ import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
 import org.controlsfx.control.action.Action;
 import org.controlsfx.control.action.ActionUtils;
+import org.deeplearning4j.plot.BarnesHutTsne;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.cpu.nativecpu.NDArray;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
@@ -68,7 +69,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	
 	private GridPane pane;
 	private SplitPane splitPane;
-	private ParameterPanelFX classPanel;
+	private ParameterPanelFX classPanel, clusterFX;
 	private ScatterPlotPane scatterPane;
 	
 	private Button 	btnChangeClass, 
@@ -189,12 +190,22 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		classPanel.addParameterChangeListener(this);
 		Pane classChoicePane = classPanel.getPane();
 		
+		// -- Create clustering pane -- //
+		ParameterList clusterParams = new ParameterList()
+				.addBooleanParameter("tsne", "TSNE", false, "Use TSNE instead of the standard PCA. This will take longer but result in a more visually pleasing plot.")
+				.addIntParameter("perplexity", "Perplexity", 20, null, "Perplexity is number of nearest neighbours used in TSNE.")
+				.addIntParameter("nIter", "Iterations", 1000, null, "Amount of iterations for the TSNE.");
+		clusterFX = new ParameterPanelFX(clusterParams);
+		TitledPane titledPane = new TitledPane("Clustering options", clusterFX.getPane());
+		titledPane.setExpanded(false);
+				
 		// -- Add everything to the Panel -- //
 		pane.add(makeToolbarButtons(), 0, 0);
 		pane.add(labelPanel, 0, 1);
 		pane.add(classButtonPanel, 0, 2);
 		pane.add(classChoicePane, 0, 3);
-		pane.add(miscButtonPanel, 0, 4);
+		pane.add(titledPane, 0, 4);
+		pane.add(miscButtonPanel, 0, 5);
 		
 		// -- Create the split pane -- //
 		splitPane = new SplitPane();
@@ -500,8 +511,13 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	
 	public void clusterData () {
 		
+		// Get the parameters
+		boolean tsne = clusterFX.getParameters().getBooleanParameterValue("tsne");
+		int nIter = clusterFX.getParameters().getIntParameterValue("nIter");
+		int perplexity = clusterFX.getParameters().getIntParameterValue("perplexity");
+		
 		// Cluster the data
-		pathObjectServer.clusterPathObjects();
+		pathObjectServer.clusterPathObjects(tsne, nIter, perplexity);
 		// Update the labels
 		updateLabels(currentObject);
 		
@@ -529,7 +545,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	@Override
 	public void parameterChanged(ParameterList parameterList, String key, boolean isAdjusting) {
 		
-		// Recluster if clusterCount slider is adjusted
+		// Change the clusterCount when the slider is adjusted
 		if (key.equals("clusterCount")) {
 			int clusterCount = classPanel.getParameters().getIntParameterValue(key);
 			pathObjectServer.setClusterCount(clusterCount);
@@ -615,10 +631,20 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		}
 		
 		public void clusterPathObjects () {
+			clusterPathObjects(false, -1, -1);
+		}
+		
+		
+		public void clusterPathObjects (final boolean tsne, final int nIter, final int perplexity) {
 			
+			// Check if any data available
 			if (pathObjects.isEmpty() || pathObjects.size() == 1) {
 				return;
 			}
+			
+			// Clear the current clusters
+			clusteredDataMap.clear();
+			clusteredMap.clear();
 			
 			if (clusterCount < 2) {
 				
@@ -640,20 +666,27 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				return;
 			}
 			
-			// Setup the clusterer
+			// Setup the clusterer: currently uses KMeans
 			KMeansPlusPlusClusterer<ClusterableObject> km = new KMeansPlusPlusClusterer<>(clusterCount);
 			List<ClusterableObject> clusterableObjects = new ArrayList<>();
 			
 			// Create a complete feature matrix of the PathObjects
 			INDArray matrix = createFeatureMatrix();
 			
-			// Perform dimensionality reduction
-			INDArray pca = PCA.pca(matrix, 2, false);
+			// Perform dimensionality reduction: either tsne or pca
+			INDArray reduced;
+			if (!tsne)
+				reduced = PCA.pca(matrix, 2, true);
+			else {
+				reduced = getTsneData(matrix, nIter, perplexity);
+				
+				logger.info(reduced.toString());
+			}
 			
 			// Set the points of the Clusterable Objects
 			for (int i = 0; i < pathObjects.size(); i++) {
 				PathObject p = pathObjects.get(i);
-				clusterableObjects.add(new ClusterableObject(p, pca.getRow(i).dup().data().asDouble()));
+				clusterableObjects.add(new ClusterableObject(p, reduced.getRow(i).dup().data().asDouble()));
 			}
 			logger.info("Added " + clusterableObjects.size() + " to the clusterable list.");
 			
@@ -668,7 +701,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 					objects.add(c.getPathObject());
 				}
 				clusteredMap.put(label, objects);
-				clusteredDataMap.put(label, cenCluster.getPoints());
+				clusteredDataMap.put(label, cenCluster.getPoints()); // TODO Consider only using this map instead of this one AND the clusteredMap
 				i++;
 			}
 			
@@ -696,6 +729,31 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				logger.info(" Cluster " + k + ": " + clusteredMap.get(k).size() + " items.");
 			}
 			
+		}
+		
+		/**
+		 * Perform a TSNE dimension reduction using a BarnesHut tsne model. 
+		 *
+		 * @param featureMatrix
+		 * @param nIter
+		 * @param perplexity
+		 * @return
+		 */
+		private INDArray getTsneData (INDArray featureMatrix, final int nIter, final int perplexity) {
+			
+			// Create the tsne model
+			BarnesHutTsne tsne = new BarnesHutTsne.Builder()
+					.perplexity(perplexity)
+					.setMaxIter(nIter)
+					.theta(0.5)
+					.normalize(true)
+					.build();
+			
+			// Perform tsne
+			tsne.fit(featureMatrix);
+			
+			// Return the reduced data
+			return tsne.getData();
 		}
 		
 		private INDArray createFeatureMatrix () {

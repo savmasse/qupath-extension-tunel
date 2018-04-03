@@ -8,10 +8,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.opencv.core.Algorithm;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.ml.Ml;
 import org.opencv.ml.SVM;
+import org.opencv.ml.StatModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -244,7 +246,7 @@ public class ClassifierExampleCommand implements PathCommand {
 		
 		// Evaluate the model by testing on the training set
 		classifier.predict(getFeatureMatrix(), predictions, 0);
-		ClassifierStatisticsHelper stats = new ClassifierStatisticsHelper(getTrainingLabels(), predictions, classList.size());
+		ClassifierStatisticsHelper stats = new ClassifierStatisticsHelper(getTrainingLabels(), predictions, classList.size(), labelMap);
 		stats.evaluate();
 	}
 	

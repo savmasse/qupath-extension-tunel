@@ -70,6 +70,7 @@ public class ActiveLearningCommand2 implements PathCommand {
 			scrollPane.setFitToHeight(true);
 			scrollPane.setFitToWidth(true);
 			
+			// TODO Check if including this CSS file actually does anything...
 			Scene scene = new Scene(scrollPane);
 			scene.getStylesheets().add(getClass().getResource("active_learning.css").toExternalForm());
 			dialog.setScene(scene);
