@@ -1,7 +1,6 @@
 package qupath.lib.active_learning;
 
 import java.awt.image.BufferedImage;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -9,37 +8,38 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
 import org.apache.commons.math3.ml.clustering.Clusterable;
 import org.apache.commons.math3.ml.clustering.KMeansPlusPlusClusterer;
-import org.controlsfx.control.action.Action;
-import org.controlsfx.control.action.ActionUtils;
-import org.deeplearning4j.plot.BarnesHutTsne;
+import org.deeplearning4j.plot.Tsne;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.cpu.nativecpu.NDArray;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
 import org.nd4j.linalg.factory.Nd4j;
-import org.opencv.imgproc.Imgproc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javafx.scene.Cursor;
+import javafx.scene.Scene;
 import javafx.scene.chart.*;
 import javafx.scene.chart.XYChart.Series;
 import javafx.scene.input.*;
 import javafx.scene.effect.*;
 import javafx.scene.shape.*;
 import javafx.scene.layout.*;
+import javafx.scene.control.*;
+import javafx.concurrent.*;
+import javafx.application.*;
+import javafx.stage.*;
 
 import javafx.geometry.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
-import jfxtras.scene.layout.HBox;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import qupath.lib.classifiers.PathClassificationLabellingHelper;
-import qupath.lib.classifiers.PathClassifierTools;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
@@ -47,7 +47,6 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.QuPathGUI.GUIActions;
 import qupath.lib.gui.helpers.PanelToolsFX;
 import qupath.lib.gui.helpers.dialogs.ParameterPanelFX;
-import qupath.lib.gui.panels.classify.PathClassifierPanel;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.measurements.MeasurementList;
@@ -134,7 +133,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		btnFocus.setOnAction(e -> {
 			clickFocus();
 		});
-		btnRecluster = new Button("Recluster");
+		btnRecluster = new Button("Cluster");
 		btnRecluster.setTooltip(new Tooltip ("Recluster the data."));
 		btnRecluster.setOnAction(e -> {
 			clickRecluster();
@@ -246,11 +245,14 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		currentObject.setPathClass(currentObject.getPathClass(), 1.0);
 		
 		// Serve the next PathObject and set all UI 
-		currentObject = setupNext();
+		PathObject next = setupNext();
 		
 		// Add to training set if required
 		if (classPanel.getParameters().getBooleanParameterValue("addTrain"))
 			addTotTraining(currentObject);
+		
+		// Update currentObject
+		currentObject = next;
 	}
 	
 	/**
@@ -328,7 +330,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	
 	private void updateLabels (PathObject next) {
 		lblClass.setText("Class: " + next.getPathClass());
-		if (next.getClassProbability() != Double.NaN) {
+		if (Double.isNaN(next.getClassProbability())) {
 			double rounded = (int) (next.getClassProbability() * 1000) / 1000.0;
 			lblClass.setText( lblClass.getText() + " (" + rounded + ")");
 		}
@@ -492,9 +494,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			ImageData<BufferedImage> imageDataNew) {
 		
 		this.setImageData(imageDataOld, imageDataNew);
-		this.updateViewer();
-		
-		// Update the channel checkboxes when image changes
+		this.updateViewer();		
 	}
 	
 	public void setImageData(final ImageData<BufferedImage> imageDataOld, final ImageData<BufferedImage> imageDataNew) {
@@ -516,14 +516,31 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		int nIter = clusterFX.getParameters().getIntParameterValue("nIter");
 		int perplexity = clusterFX.getParameters().getIntParameterValue("perplexity");
 		
-		// Cluster the data
-		pathObjectServer.clusterPathObjects(tsne, nIter, perplexity);
-		// Update the labels
-		updateLabels(currentObject);
+		// Update the list of objects in the server
+		pathObjectServer.updatePathObjects(hierarchy);
 		
-		// Check if plot is visible: if visible then update
-		if (splitPane.getItems().size() > 1)
-			scatterPane.processClusterData(pathObjectServer.getClusteredDataMap());
+		// Try clustering the data inside a task
+		ProgressBar progressBar = new ProgressBar();
+		Stage dialog = new Stage();
+		dialog.initOwner(qupath.getStage());
+		dialog.initModality(Modality.APPLICATION_MODAL);
+		ClusterTask clusterTask = new ClusterTask(dialog, tsne, nIter, perplexity, pane, scatterPane, pathObjectServer);
+		progressBar.progressProperty().bind(clusterTask.progressProperty());
+		
+		BorderPane paneDialog = new BorderPane();
+		paneDialog.setPadding(new Insets(5,5,5,5));
+		paneDialog.setMaxWidth(Double.MAX_VALUE);
+		paneDialog.setTop(progressBar);
+		
+		dialog.setTitle("Reducing dimensions and clustering...");
+		dialog.setScene(new Scene(paneDialog));
+		dialog.sizeToScene();
+		
+		qupath.createSingleThreadExecutor(this).submit(clusterTask);
+		qupath.createSingleThreadExecutor(this).submit(clusterTask);
+		
+		pane.setCursor(Cursor.WAIT);
+		dialog.show();
 	}
 	
 	/**
@@ -535,11 +552,12 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		
 		// Update the object list and recluster
 		int clusterCount = classPanel.getParameters().getIntParameterValue("clusterCount");
-		pathObjectServer = new ALPathObjectServer(hierarchy);
-		pathObjectServer.setClusterCount(clusterCount);
-
+		
+		// Update the objects but don't cluster
+		pathObjectServer.updatePathObjects(hierarchy);
+		
 		// Cluster the data
-		clusterData();
+		// clusterData();
 	}
 
 	@Override
@@ -588,9 +606,17 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			clusteredDataMap = new HashMap<>();
 			itMap = new HashMap<>();
 			
+			// Load initial samples
+			updatePathObjects(hierarchy);
+		} 
+		
+		private void updatePathObjects (PathObjectHierarchy hierarchy) {
+			
 			// Create a list of all objects in the current hierarchy
-			List <PathObject> tempList = hierarchy.getFlattenedObjectList(null);
-			for (PathObject p : tempList) {
+			List <PathObject> completeList = hierarchy.getFlattenedObjectList(null);
+			List <PathObject> tempList = new ArrayList<>();
+			
+			for (PathObject p : completeList) {
 				
 				// Filter out annotations; we only want detections in the list
 				if (p instanceof PathAnnotationObject) 
@@ -605,10 +631,35 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 					continue;
 				
 				// Add to the actual list
-				pathObjects.add(p);
+				tempList.add(p);
 			}
 			
-		} 
+			// Do some subsampling in the tempList to get a workable amount of 
+			pathObjects = subSample(tempList);
+		}
+		
+		private List <PathObject> subSample (List <PathObject> pathObjects) {
+
+			if (pathObjects.size() <= 500) 
+				return pathObjects;
+			
+			Random rand = new Random (System.currentTimeMillis());
+			List <Integer> previousNumbers = new ArrayList<>();
+			List <PathObject> res = new ArrayList<>();
+			
+			// Get 500 random samples
+			for (int i = 0; i < 500; i++) {
+				
+				int number = 0;
+				while ( previousNumbers.contains( number = Integer.valueOf(rand.nextInt(pathObjects.size())) ) ) {
+					previousNumbers.add(number);
+				}
+				
+				res.add(pathObjects.get(number));
+			}
+			
+			return res;
+		}
 		
 		public List <PathObject> getObjects () {
 			return pathObjects;
@@ -645,6 +696,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			// Clear the current clusters
 			clusteredDataMap.clear();
 			clusteredMap.clear();
+			itMap.clear();
 			
 			if (clusterCount < 2) {
 				
@@ -671,6 +723,10 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			List<ClusterableObject> clusterableObjects = new ArrayList<>();
 			
 			// Create a complete feature matrix of the PathObjects
+			Nd4j.ENFORCE_NUMERICAL_STABILITY = true; // These three lines fix a lot of errors; no idea why they occur so also not a clue why this fixes it...
+			Nd4j.setDataType(org.nd4j.linalg.api.buffer.DataBuffer.Type.DOUBLE); 
+			Nd4j.factory().setDType(org.nd4j.linalg.api.buffer.DataBuffer.Type.DOUBLE); 	
+			
 			INDArray matrix = createFeatureMatrix();
 			
 			// Perform dimensionality reduction: either tsne or pca
@@ -679,8 +735,6 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				reduced = PCA.pca(matrix, 2, true);
 			else {
 				reduced = getTsneData(matrix, nIter, perplexity);
-				
-				logger.info(reduced.toString());
 			}
 			
 			// Set the points of the Clusterable Objects
@@ -728,7 +782,6 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			for (Integer k : clusteredMap.keySet()) {
 				logger.info(" Cluster " + k + ": " + clusteredMap.get(k).size() + " items.");
 			}
-			
 		}
 		
 		/**
@@ -737,24 +790,19 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		 * @param featureMatrix
 		 * @param nIter
 		 * @param perplexity
-		 * @return
+		 * @return INDArray: matrix containing the reduced features; size = (rows, 2)
 		 */
 		private INDArray getTsneData (INDArray featureMatrix, final int nIter, final int perplexity) {
-			
-			// Create the tsne model
-			BarnesHutTsne tsne = new BarnesHutTsne.Builder()
-					.perplexity(perplexity)
+			// Use a regular Tsne model
+			Tsne tsne = new Tsne.Builder()
 					.setMaxIter(nIter)
-					.theta(0.5)
+					.perplexity(perplexity)
 					.normalize(true)
 					.build();
 			
-			// Perform tsne
-			tsne.fit(featureMatrix);
-			
-			// Return the reduced data
-			return tsne.getData();
+			return tsne.calculate(featureMatrix, 2, perplexity);
 		}
+		
 		
 		private INDArray createFeatureMatrix () {
 			
@@ -769,14 +817,17 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				List <Double> temp = new ArrayList<>();
 				for (int i = 0; i < p.getMeasurementList().size(); i++) {
 					
-					// Throw out everything that isn't a shape factor 
+					// Throw out everything that isn't a shape factor
 					if (!p.getMeasurementList().getMeasurementName(i).contains("Centroid")
 						&& !p.getMeasurementList().getMeasurementName(i).contains("Cell")
 						&& !p.getMeasurementList().getMeasurementName(i).contains("Cytoplasm")
 						&& !p.getMeasurementList().getMeasurementName(i).contains("Channel")
 						) {
 						
-						temp.add (p.getMeasurementList().getMeasurementValue(i));
+						if (p.getMeasurementList().getMeasurementValue(i) != Double.NaN)
+							temp.add (p.getMeasurementList().getMeasurementValue(i));
+						else 
+							temp.add (Double.valueOf(0));
 					}
 				}
 				
@@ -898,12 +949,12 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	        
 			// Create the chart
 			sc = new ScatterChart<Number,Number>(xAxis,yAxis);
-	        sc.setPrefSize(500, 400);
-	        sc.setMinSize(500, 300);
+	        sc.setPrefSize(500, 500);
+	        sc.setMinSize(500, 400);
 	        
 	        // Set titles
-	        xAxis.setLabel("Feature 1");                
-	        yAxis.setLabel("Feature 2");
+	        xAxis.setLabel("x-axis");                
+	        yAxis.setLabel("y-axis");
 	        sc.setTitle("Clustering plot");
 		}
 		
@@ -911,7 +962,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			
 			// First clear all previous data
 			sc.getData().clear();
-			
+						
 			// Go through the clusters and create a series for each cluster
 			for (int i = 0; i < clusterMap.size(); i++) {
 				List <ClusterableObject> clusterableObjects = clusterMap.get(i);
@@ -964,6 +1015,61 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		public GridPane getPane () {
 			return pane;
 		}
+	}
+	
+	class ClusterTask extends Task<Void> {
+
+		private Stage dialog;
+		private int nIter, perplexity;
+		private boolean tsne;
+		private GridPane parentPane;
+		private ScatterPlotPane scatterPane;
+		private ALPathObjectServer pathObjectServer;
+		
+		public ClusterTask (Stage dialog, final boolean tsne, final int nIter, final int perplexity, GridPane parentPane, ScatterPlotPane scatterPane, ALPathObjectServer pathObjectServer) {
+			this.dialog = dialog;
+			this.nIter = nIter;
+			this.perplexity = perplexity;
+			this.parentPane = parentPane;
+			this.tsne = tsne;
+			this.scatterPane = scatterPane;
+			this.pathObjectServer = pathObjectServer;
+		}
+		
+		@Override
+		protected Void call() throws Exception {
+
+			logger.info("Started clustering task...");
+			
+			// Cluster the data
+			pathObjectServer.clusterPathObjects(tsne, nIter, perplexity);
+			
+			Platform.runLater(new Runnable() {
+				  @Override public void run() {
+
+					  if (splitPane.getItems().size() > 1)
+							scatterPane.processClusterData(pathObjectServer.getClusteredDataMap());
+					  
+					  // Update the labels
+					  updateLabels(currentObject);
+				  }
+				});			
+			
+			return null;
+		}
+		
+		@Override
+		public void done() {
+			if (Platform.isFxApplicationThread()) {
+				dialog.close();
+				
+				parentPane.setCursor(Cursor.DEFAULT);
+				logger.info("Dimensionality reduction and clustering completed");
+			}
+			else
+				Platform.runLater(() -> done());
+		}
+		
 	}
 	
 }

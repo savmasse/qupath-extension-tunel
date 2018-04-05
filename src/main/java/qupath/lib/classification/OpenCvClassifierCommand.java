@@ -31,13 +31,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
+import qupath.lib.classification.classifiers.*;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.commands.interfaces.PathCommand;
 import qupath.lib.gui.helpers.DisplayHelpers;
 import qupath.lib.gui.helpers.DisplayHelpers.DialogButton;
-import qupath.lib.gui.panels.classify.ClassifierBuilderPanel;
-
-
 /**
  * Command used to create and show a suitable dialog box for interactive display of OpenCV classifiers.
  * 
@@ -54,7 +52,6 @@ public class OpenCvClassifierCommand implements PathCommand {
 	private Stage dialog;
 	private ClassifierBuilderPanel<OpenCvClassifier<?>> panel;
 
-	
 	public OpenCvClassifierCommand(final QuPathGUI qupath) {
 		this.qupath = qupath;
 	}
@@ -72,7 +69,9 @@ public class OpenCvClassifierCommand implements PathCommand {
 			RTreesClassifier defaultClassifier = new RTreesClassifier();
 			List<OpenCvClassifier<?>> classifierList = 
 					Arrays.asList(
-					defaultClassifier); // Note :: Only the default classifier is allowed here; all others were removed.
+					defaultClassifier, new SVMClassifier()
+					);
+			
 			Collections.sort(classifierList, (c1, c2) -> c1.getName().compareTo(c2.getName()));
 			panel = new ClassifierBuilderPanel<>(qupath, classifierList, defaultClassifier);
 			pane.setCenter(panel.getPane());

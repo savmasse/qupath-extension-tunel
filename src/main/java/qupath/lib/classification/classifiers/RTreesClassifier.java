@@ -21,7 +21,7 @@
  * #L%
  */
 
-package qupath.lib.classification;
+package qupath.lib.classification.classifiers;
 
 import java.util.List;
 
