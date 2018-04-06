@@ -133,7 +133,6 @@ public class RTreesClassifier extends ParameterizableOpenCvClassifier<RTrees> im
 				pathObject.setPathClass(pathClass);
 				
 //				logger.info("Set pathObject class to " + pathObject.getPathClass());
-
 			}
 			
 		} else
