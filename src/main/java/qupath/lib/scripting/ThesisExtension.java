@@ -40,7 +40,9 @@ public class ThesisExtension implements QuPathExtension {
         QuPathGUI.addMenuItems(
         					menu,
         					qupath.createPluginAction("Thresholder (experimental)", ThresholderOpenCV.class, null, false),
-        					qupath.createPluginAction("FRS (experimental)", WatershedDetectionFRSIJ.class, null, false),
+//        					qupath.createPluginAction("Experimental plugin", TunelDetectionPlugin.class, null, false),
+
+//        					QuPathGUI.createCommandAction(new TunelDetectionPlugin(qupath), "Run plugin"),
         					QuPathGUI.createCommandAction(new ClassifierExampleCommand(qupath, classList, featureList), "Classifier (experimental)", null, new KeyCodeCombination(KeyCode.A, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN)),
         					QuPathGUI.createCommandAction(new OpenCvClassifierCommand(qupath), "Updated classifier"),
         					QuPathGUI.createCommandAction(new SaveDetectionImagesCommand(qupath), "Save detections", null, new KeyCodeCombination(KeyCode.S, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN)),

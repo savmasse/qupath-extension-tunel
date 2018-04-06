@@ -72,7 +72,7 @@ import qupath.lib.gui.panels.classify.PathIntensityClassifierPanel;
  * @author Pete Bankhead
  *
  */
-class FeatureSelectionPanel {
+public class FeatureSelectionPanel {
 
 	private QuPathGUI qupath;
 
@@ -80,7 +80,7 @@ class FeatureSelectionPanel {
 
 	private BorderPane pane;
 
-	FeatureSelectionPanel(final QuPathGUI qupath) {
+	public FeatureSelectionPanel(final QuPathGUI qupath) {
 		this.qupath = qupath;
 		pane = makeFeatureSelectionPanel(qupath);
 	}

@@ -2,6 +2,7 @@ package qupath.lib.active_learning;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ import org.deeplearning4j.plot.Tsne;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
 import org.nd4j.linalg.factory.Nd4j;
+import org.opencv.features2d.Features2d;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,12 +41,14 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
+import qupath.lib.classification.FeatureSelectionPanel;
 import qupath.lib.classifiers.PathClassificationLabellingHelper;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.QuPathGUI.GUIActions;
+import qupath.lib.gui.helpers.DisplayHelpers;
 import qupath.lib.gui.helpers.PanelToolsFX;
 import qupath.lib.gui.helpers.dialogs.ParameterPanelFX;
 import qupath.lib.gui.viewer.QuPathViewer;
@@ -71,11 +75,15 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	private ParameterPanelFX classPanel, clusterFX;
 	private ScatterPlotPane scatterPane;
 	
+	private FeatureSelectionPanel featureSelectionPanel;
+	private List <String> selectedFeatures;
+	
 	private Button 	btnChangeClass, 
 					btnConfirmClass, 
 					btnRecluster, 
 					btnFocus, 
-					btnShowPlot;
+					btnShowPlot,
+					btnFeatureSelect;
 	
 	private Label lblSample, lblCluster, lblClass;
 	
@@ -106,6 +114,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		pathObjectServer = new ALPathObjectServer(hierarchy);
 		pathObjectServer.clusterPathObjects();
 		annotationMap = new HashMap<>();
+		selectedFeatures = new ArrayList<>();
 		
 		// -- Create a new pane -- //
 		pane = new GridPane();
@@ -144,6 +153,15 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		btnShowPlot.setOnAction(e -> {
 			clickShowPlot();
 		});
+		
+		// -- Handle feature panel -- //
+		btnFeatureSelect = new Button();
+		btnFeatureSelect.setText("Select features");
+		btnFeatureSelect.setTooltip(new Tooltip ("Select the features you want to use in the clustering."));
+		btnFeatureSelect.setOnAction(e -> {
+			clickFeatureSelect();
+		});
+		featureSelectionPanel = new FeatureSelectionPanel(qupath);
 		
 		GridPane classButtonPanel = PanelToolsFX.createColumnGridControls(
 				btnConfirmClass,
@@ -214,6 +232,42 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		
 		// -- Load the first object -- //
 		currentObject = setupNext();
+	}
+	
+	private void clickFeatureSelect () {
+//		Stage dialog = new Stage();
+//		dialog.initOwner(qupath.getStage());
+//		dialog.setTitle("Select features");
+//		
+//		GridPane featurePanel = new GridPane();
+//		featurePanel.add(featureSelectionPanel.getPanel(), 0, 0);
+//		
+//		Button okButton = new Button("OK");
+//		okButton.setOnAction(e -> {
+//			dialog.close();
+//			logger.info("" + featureSelectionPanel.getSelectedFeatures().get(0));
+//		});
+//		
+//		featurePanel.add(okButton, 0, 1);
+//		
+//		BorderPane bp = new BorderPane(featurePanel);
+//		
+//		Scene scene = new Scene (bp);
+//		dialog.setScene(scene);
+//		dialog.show();
+		
+		DisplayHelpers.showMessageDialog("Select features", featureSelectionPanel.getPanel());
+		updateSelectedFeatures();
+	}
+	
+	/**
+	 * Update the selected features to the featues that are curently selected in the feature 
+	 * selection panel.
+	 */
+	private void updateSelectedFeatures() {
+		selectedFeatures = featureSelectionPanel.getSelectedFeatures();
+		pathObjectServer.setSelectedFeatures(selectedFeatures);
+		logger.info(selectedFeatures.toString());
 	}
 	
 	/**
@@ -348,7 +402,9 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				qupath.getActionToggleButton(GUIActions.FILL_OBJECTS, true),
 				qupath.getActionToggleButton(GUIActions.SHOW_GRID, true),
 				new Separator(Orientation.VERTICAL),
-				qupath.getActionToggleButton(GUIActions.BRIGHTNESS_CONTRAST, true)
+				qupath.getActionToggleButton(GUIActions.BRIGHTNESS_CONTRAST, true),
+				new Separator(Orientation.VERTICAL),
+				btnFeatureSelect
 				);
 		return toolbar;
 	}
@@ -597,6 +653,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		private Integer currentCluster = Integer.valueOf(0);
 		private PathObject currentObject;
 		private int clusterCount = 1;
+		private List<String> selectedFeatures;
 		
 		public ALPathObjectServer (PathObjectHierarchy hierarchy) {
 			
@@ -608,7 +665,16 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			
 			// Load initial samples
 			updatePathObjects(hierarchy);
+			
+			// If no features were selected, assume we want to use shape
+			if (selectedFeatures == null)
+				selectedFeatures = Arrays.asList("Nucleus: Area", "Nucleus: Perimeter", "Nucleus: Eccentricity");
 		} 
+		
+		public ALPathObjectServer (PathObjectHierarchy hierarchy, List<String> selectedFeatures) {
+			this(hierarchy);
+			this.selectedFeatures = selectedFeatures;
+		}
 		
 		private void updatePathObjects (PathObjectHierarchy hierarchy) {
 			
@@ -817,13 +883,20 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				List <Double> temp = new ArrayList<>();
 				for (int i = 0; i < p.getMeasurementList().size(); i++) {
 					
-					// Throw out everything that isn't a shape factor
-					if (!p.getMeasurementList().getMeasurementName(i).contains("Centroid")
-						&& !p.getMeasurementList().getMeasurementName(i).contains("Cell")
-						&& !p.getMeasurementList().getMeasurementName(i).contains("Cytoplasm")
-						&& !p.getMeasurementList().getMeasurementName(i).contains("Channel")
-						) {
-						
+//					// Throw out everything that isn't a shape factor
+//					if (!p.getMeasurementList().getMeasurementName(i).contains("Centroid")
+//						&& !p.getMeasurementList().getMeasurementName(i).contains("Cell")
+//						&& !p.getMeasurementList().getMeasurementName(i).contains("Cytoplasm")
+//						&& !p.getMeasurementList().getMeasurementName(i).contains("Channel")
+//						) {
+//						
+//						if (p.getMeasurementList().getMeasurementValue(i) != Double.NaN)
+//							temp.add (p.getMeasurementList().getMeasurementValue(i));
+//						else 
+//							temp.add (Double.valueOf(0));
+//					}
+					
+					if (selectedFeatures.contains( p.getMeasurementList().getMeasurementName(i) ) ) {
 						if (p.getMeasurementList().getMeasurementValue(i) != Double.NaN)
 							temp.add (p.getMeasurementList().getMeasurementValue(i));
 						else 
@@ -872,6 +945,10 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			currentObject = servedObject;
 			
 			return servedObject;
+		}
+		
+		public void setSelectedFeatures (List<String> selectedFeatures) { 
+			this.selectedFeatures = selectedFeatures;
 		}
 		
 	}
