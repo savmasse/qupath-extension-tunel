@@ -36,7 +36,7 @@ import qupath.lib.objects.classes.PathClass;
  * @author Pete Bankhead
  *
  */
-class ConfusionMatrix {
+public class ConfusionMatrix {
 
 	private List<PathClass> pathClasses = new ArrayList<>();
 	private int[][] matrix;
@@ -73,7 +73,13 @@ class ConfusionMatrix {
 	public String toString() {
 		int nChars = 5;
 		for (PathClass pc : pathClasses) {
-			nChars = Math.max(nChars, pc.getName().length());
+			String name = "";
+			if (pc.isDerivedClass()) 
+				name = pc.getParentClass().getName() + ": " + pc.getName();
+			else 
+				name = pc.getName();
+			
+			nChars = Math.max(nChars, name.length());
 		}
 		String fString = "%1$" + nChars + "s";
 
@@ -81,11 +87,21 @@ class ConfusionMatrix {
 		for (int i = 0; i < nChars; i++)
 			sb.append(" ");
 		for (PathClass pc : pathClasses) {
-			sb.append("\t").append(String.format(fString, pc.getName()));
+			String name = "";
+			if (pc.isDerivedClass()) 
+				name = pc.getParentClass().getName() + ": " + pc.getName();
+			else 
+				name = pc.getName();
+			sb.append("\t").append(String.format(fString, name));
 		}
 		sb.append("\n");
 		for (int i = 0; i < pathClasses.size(); i++) {
-			sb.append(String.format(fString, pathClasses.get(i).getName()));
+			String name = "";
+			if (pathClasses.get(i).isDerivedClass()) 
+				name = pathClasses.get(i).getParentClass().getName() + ": " + pathClasses.get(i).getName();
+			else 
+				name = pathClasses.get(i).getName();
+			sb.append(String.format(fString, name));
 			for (int j = 0; j < pathClasses.size(); j++) {
 
 				sb.append("\t").append(String.format(fString, matrix[i][j]));

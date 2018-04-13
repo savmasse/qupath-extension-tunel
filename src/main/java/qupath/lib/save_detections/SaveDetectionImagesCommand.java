@@ -43,6 +43,8 @@ import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
 import qupath.lib.plugins.parameters.ParameterList;
+import qupath.lib.roi.PathROIToolsAwt;
+import qupath.lib.roi.interfaces.ROI;
 
 /**
  * Command for the saving of detection objects to the disk as PNG or JPEG.
@@ -387,6 +389,10 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			
 			// Release the Mat for memory reasons
 			write.release();
+			
+		}
+		
+		public static void getCroppedData () {
 			
 		}
 		

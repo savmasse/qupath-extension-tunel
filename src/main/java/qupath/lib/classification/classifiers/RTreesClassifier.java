@@ -119,21 +119,23 @@ public class RTreesClassifier extends ParameterizableOpenCvClassifier<RTrees> im
 			
 			// Set the class & probability
 			// Threshold the probability to get the cases where there is sufficient doubt to warrant a user choice !
-			PathClass pathClass;
-			if (probability > 0.6) {
-				pathClass = pathClasses.get(index);
-				pathObject.setPathClass(pathClass, probability);	
-			}
-			else {
-				// Print the probability
-				logger.info("Probability : " + probability);	
-				
-				// Set the class to "Doubt"
-				pathClass = PathClassFactory.getPathClass("Doubt");
-				pathObject.setPathClass(pathClass);
-				
-//				logger.info("Set pathObject class to " + pathObject.getPathClass());
-			}
+			PathClass pathClass = pathClasses.get(index);
+//			if (probability > 0.6) {
+//				pathClass = pathClasses.get(index);
+//				pathObject.setPathClass(pathClass, probability);	
+//			}
+//			else {
+//				// Print the probability
+//				logger.info("Probability : " + probability);	
+//				
+//				// Set the class to "Doubt"
+//				pathClass = PathClassFactory.getPathClass("Doubt");
+//				pathObject.setPathClass(pathClass);
+//				
+////				logger.info("Set pathObject class to " + pathObject.getPathClass());
+//			}
+			
+			pathObject.setPathClass(pathClass, probability);
 			
 		} else
 //			logger.info("Results: " + results.dump());

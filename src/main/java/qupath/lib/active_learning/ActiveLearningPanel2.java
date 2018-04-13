@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import javax.print.attribute.standard.DialogTypeSelection;
+
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
 import org.apache.commons.math3.ml.clustering.Clusterable;
@@ -167,6 +169,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 				btnConfirmClass,
 				btnChangeClass
 				);
+	
 		classButtonPanel.setPadding(new Insets(10, 0, 10, 0));
 		classButtonPanel.setMinSize(350, 70);
 		classButtonPanel.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
@@ -269,6 +272,8 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		pathObjectServer.setSelectedFeatures(selectedFeatures);
 		logger.info(selectedFeatures.toString());
 	}
+	
+	
 	
 	/**
 	 * Handle the change class button click.
@@ -384,7 +389,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	
 	private void updateLabels (PathObject next) {
 		lblClass.setText("Class: " + next.getPathClass());
-		if (Double.isNaN(next.getClassProbability())) {
+		if (!Double.isNaN(next.getClassProbability())) {
 			double rounded = (int) (next.getClassProbability() * 1000) / 1000.0;
 			lblClass.setText( lblClass.getText() + " (" + rounded + ")");
 		}
@@ -586,6 +591,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		BorderPane paneDialog = new BorderPane();
 		paneDialog.setPadding(new Insets(5,5,5,5));
 		paneDialog.setMaxWidth(Double.MAX_VALUE);
+		paneDialog.setMinWidth(300);
 		paneDialog.setTop(progressBar);
 		
 		dialog.setTitle("Reducing dimensions and clustering...");
@@ -681,7 +687,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			// Create a list of all objects in the current hierarchy
 			List <PathObject> completeList = hierarchy.getFlattenedObjectList(null);
 			List <PathObject> tempList = new ArrayList<>();
-			
+
 			for (PathObject p : completeList) {
 				
 				// Filter out annotations; we only want detections in the list
@@ -766,7 +772,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			
 			if (clusterCount < 2) {
 				
-				// Sort the objects
+				// Just sort the objects by probability
 				Collections.sort(pathObjects, new Comparator<PathObject>() {
 				    @Override
 				    public int compare(PathObject lhs, PathObject rhs) {
@@ -921,19 +927,38 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 		public PathObject serveNext () {
 			
 			// Serve from the current cluster
-			Iterator<PathObject> it = itMap.get(currentCluster);
+			Iterator<PathObject> it;
 			
-			if (!it.hasNext()) {
-				logger.info ("Reached end of cluster n°" + currentCluster + ".");
+//			if (!it.hasNext()) {
+//				logger.info ("Reached end of cluster n°" + currentCluster + ".");
+//				
+//				currentCluster++;
+//				if (currentCluster >= clusterCount)
+//					currentCluster = 0;
+//				
+//			}
+			
+			// If the iterator is at its end, go to the next cluster
+			int attempts = 0;
+			while ( !(it = itMap.get(currentCluster)).hasNext() && attempts < itMap.size()) {
 				
+				logger.info("Arrived at end of cluster " + clusterCount);
 				currentCluster++;
-				if (currentCluster >= clusterCount)
+				if (currentCluster >= currentCluster)
 					currentCluster = 0;
 				
+				attempts++;
+			}
+			
+			// If all clusters are empty then serve the current object
+			PathObject servedObject;
+			if (attempts >= itMap.size()) {
+				logger.info("All clusters are empty. Recluster or add more detections to continue.");
 				return currentObject;
 			}
 			
-			PathObject servedObject = it.next();
+			// Else continue serving objects from the next cluster
+			servedObject = it.next();
 
 			logger.info("Served PathObject from cluster n° " + currentCluster + ".");
 			
