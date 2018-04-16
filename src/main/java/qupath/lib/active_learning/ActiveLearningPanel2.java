@@ -419,7 +419,7 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 	 * after first checking whether its not already in another Active Learning 
 	 * point annotation.
 	 * 
-	 * @param p {@link PathObject} to add to the training set.
+	 * @param p: {@link PathObject} to add to the training set.
 	 */
 	private void addTotTraining (PathObject p) {
 		
@@ -459,9 +459,9 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			removeDuplicate(p, point);
 
 			// Add a new pathObject as a point
-			PathObject temp = new PathDetectionObject(point);
-			temp.setPathClass(p.getPathClass());
-			annotation.addPathObject(temp);
+			//PathObject temp = new PathDetectionObject(point);
+			//temp.setPathClass(p.getPathClass());
+			//annotation.addPathObject(temp);
 
 			// Add to the map
 			annotationMap.put(p.getPathClass(), annotation);
@@ -475,10 +475,10 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			annotation = annotationMap.get(p.getPathClass());
 			
 			// Add a new pathObject
-			PathObject temp = new PathDetectionObject(point);
-			temp.setPathClass(p.getPathClass());
+			//PathObject temp = new PathDetectionObject(point);
+			//temp.setPathClass(p.getPathClass());
 			
-			annotation.addPathObject(temp);
+			//annotation.addPathObject(temp);
 			
 			// Set the ROI of the annotation
 			List <Point2> points = new ArrayList<>();

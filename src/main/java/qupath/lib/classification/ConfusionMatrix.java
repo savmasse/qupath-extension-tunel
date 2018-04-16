@@ -134,18 +134,18 @@ public class ConfusionMatrix {
 	}
 	
 	private double getTruePositive () {
-		return matrix[1][1];
-	}
-	
-	private double getFalsePositive () {
-		return matrix[1][0];
-	}
-	
-	private double getTrueNegative () {
 		return matrix[0][0];
 	}
 	
-	private double getFalseNegative () {
+	private double getFalsePositive () {
 		return matrix[0][1];
+	}
+	
+	private double getTrueNegative () {
+		return matrix[1][1];
+	}
+	
+	private double getFalseNegative () {
+		return matrix[1][0];
 	}
 }
