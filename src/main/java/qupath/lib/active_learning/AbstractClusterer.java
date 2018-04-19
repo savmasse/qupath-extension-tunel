@@ -45,7 +45,7 @@ public abstract class AbstractClusterer {
 		
 		if (!clusteredMap.isEmpty()) {	
 			for (Integer key : clusteredMap.keySet()) {
-				sb.append("\tCluster " + key + ": " + clusteredMap.get(key).size());
+				sb.append("\tCluster " + key + ": " + clusteredMap.get(key).size() + "\n");
 			}
 		}
 		else sb.append("Clustering was not completed.");

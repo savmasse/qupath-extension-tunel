@@ -9,9 +9,11 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dimensionalityreduction.PCA;
 
 public class PCADimensionalityReduction extends DimensionalityReduction <INDArray> {
-
-	public PCADimensionalityReduction(INDArray data, int dimensions) {
+	private boolean normalize;
+	
+	public PCADimensionalityReduction(final INDArray data, final int dimensions, final boolean normalize) {
 		super(data, dimensions);
+		this.normalize = normalize;
 	}
 	
 	/**
@@ -19,7 +21,7 @@ public class PCADimensionalityReduction extends DimensionalityReduction <INDArra
 	 */
 	@Override
 	public void doReduction() {
-		result = PCA.pca(data, dimensions, true);
+		result = PCA.pca(data, dimensions, normalize);
 	}
 
 	/**
@@ -32,7 +34,7 @@ public class PCADimensionalityReduction extends DimensionalityReduction <INDArra
 	public List<double[]> convertToDoubleList () {
 		List <double []> list = new ArrayList<>();
 		
-		for (int i = 0; i < result.length(); i++) {
+		for (int i = 0; i < result.rows(); i++) {
 			
 			DataBuffer buf = result.getRow(i).dup().data();
 			double [] dataPoint = buf.asDouble();

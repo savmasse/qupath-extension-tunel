@@ -5,11 +5,23 @@ import qupath.lib.objects.PathObject;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javafx.scene.chart.*;
 import javafx.scene.layout.*;
 
-public class ScatterPlotPanel {
+/**
+ * Simple implementation of a javafx scatter plot which links objects of class T to the 
+ * data points. 
+ * 
+ * @author Sam Vanmassenhove
+ *
+ * @param <T>
+ */
+public class ScatterPlotPanel <T>{
 	
+	private static final Logger logger = LoggerFactory.getLogger(ScatterPlotPanel.class);
 	private GridPane pane;
 	private NumberAxis xAxis, yAxis;
 	private ScatterChart <Number, Number> scatterChart;
@@ -58,12 +70,17 @@ public class ScatterPlotPanel {
 	 * @param pathObjects
 	 * @return
 	 */
-	private XYChart.Series<Number, Number> createSeries (double [][] data, List <PathObject> pathObjects) {
+	private XYChart.Series<Number, Number> createSeries (double [][] data, List <T> objects) {
 		
 		XYChart.Series<Number, Number> res = new XYChart.Series<>();
 		
 		for (int i = 0; i < data.length; i++) {	
-			XYChart.Data<Number, Number> d = new XYChart.Data<>(data[0][0], data[0][1], pathObjects.get(i));
+			XYChart.Data<Number, Number> d;
+			if (objects != null)
+				d = new XYChart.Data<>(data[i][0], data[i][1], objects.get(i));
+			else 
+				d = new XYChart.Data<>(data[i][0], data[i][1]);
+			
 			res.getData().add(d);
 		}
 		
@@ -74,11 +91,20 @@ public class ScatterPlotPanel {
 	 * Add a series to the scatter plot.
 	 * @param name
 	 * @param data 2d array containing the x and y values for the plot
+	 * @param objects Objects to link to the data points. Set to null to ignore.
 	 */
-	public void addSeries (String name, double [][] data, List <PathObject> pathObjects) {
+	public void addSeries (String name, double [][] data, List <T> objects) {
+		
+		if (data == null || data[0].length < 2) {
+			logger.info("No data provided - could not plot.");
+			return;
+		}
+		if (data[0].length > 2) {
+			logger.info("Provided data is not 2D - only the first two elements of the array were used in the plot.");
+		}
 		
 		// Get the series
-		XYChart.Series<Number, Number> series = createSeries(data, pathObjects);
+		XYChart.Series<Number, Number> series = createSeries(data, objects);
 		series.setName(name);
 		scatterChart.getData().addAll(series);
 		
@@ -86,6 +112,12 @@ public class ScatterPlotPanel {
 		xAxis.autoRangingProperty().set(true);
 		yAxis.autoRangingProperty().set(true);
 	}
+	
+	public void addSeries (String name, List<double[]> data, List<T>objects) {
+		double [][] d = data.toArray(new double[data.size()][data.get(0).length]);
+		addSeries(name, d, objects);
+	}
+	
 	
 	/**
 	 * Clear the scatter plot.

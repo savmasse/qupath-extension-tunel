@@ -3,6 +3,8 @@ package qupath.lib.visualization;
 
 import java.util.List;
 
+import org.nd4j.linalg.factory.Nd4j;
+
 /**
  * Abstract parent class for the different dimensionanlty reduction algortithms that could 
  * be used for visualization.
@@ -19,6 +21,7 @@ public abstract class DimensionalityReduction <T>{
 	
 	public DimensionalityReduction (final T data, int dimensions) {
 		this.data = data;
+		this.dimensions = dimensions;
 	}
 	
 	public abstract void doReduction ();
@@ -28,5 +31,6 @@ public abstract class DimensionalityReduction <T>{
 	}
 	
 	public abstract List<double[]> convertToDoubleList ();
+	
 	
 }
