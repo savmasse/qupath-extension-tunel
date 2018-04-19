@@ -121,6 +121,23 @@ public class ConfusionMatrix {
 		return sb.toString();
 	}
 	
+	/**
+	 * Return a string which contains the statistics.
+	 * @return
+	 */
+	public String getStatistics () {
+		if (pathClasses.size() != 2)
+			return "Could not print stats because not a binary classification.";
+		
+		StringBuilder sb = new StringBuilder();
+		
+		sb.append("Accuracy: " + calcAccuracy() + "\n")
+			.append("Precision: " + calcPrecision() + "\n")
+			.append("Recall: " + calcRecall() + "\n");
+		
+		return sb.toString();
+	}
+	
 	private double calcAccuracy () {
 		return (getTruePositive() + getTrueNegative()) / (getTruePositive() + getTrueNegative() + getFalsePositive() + getFalseNegative());
 	}
