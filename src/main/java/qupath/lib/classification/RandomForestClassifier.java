@@ -12,6 +12,7 @@ import org.opencv.ml.RTrees;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import qupath.lib.gui.QuPathGUI;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
@@ -113,7 +114,7 @@ public class RandomForestClassifier {
 //			int label = pathClasses.indexOf(pc);
 			
 			for (PathClass c : pathClasses) {
-				if (pc.isDerivedFrom(c)) {
+				if (pc.isDerivedFrom(c) || pc.toString().contains(c.toString())) {
 					int label = pathClasses.indexOf(c);
 					res.put(i, 0, label);
 					break; // Exit loop once label is set
@@ -149,36 +150,40 @@ public class RandomForestClassifier {
 	 * Perform a prediction on a list of testing samples; also update the probabilities of
 	 * the objects.
 	 */
-	public List <Integer> predict (List <PathObject> testSet) {
+	public List <PathClass> predict (List <PathObject> testSet) {
 		
-		List <Integer> results = new ArrayList<>();
+		List <PathClass> results = new ArrayList<>();
 		Mat testFeatureMatrix = createFeatureMatrix(testSet);		
 		Mat predictions = new Mat();
 		
 		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
-			int label = (int) Math.round( rTrees.predict(testFeatureMatrix.row(i)) );
+			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
+//			logger.info("" + label + testFeatureMatrix.row(i).dump());
+//			if (label > 2 || label < 0) {
+//				QuPathGUI.getInstance().getImageData().getHierarchy().getSelectionModel().setSelectedObject(testSet.get(i));
+//			}
 			double prediction = rTrees.predict(testFeatureMatrix.row(i), predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
-			results.add(label);
+			results.add(pathClasses.get(label));
 			
 			// Get the probabilities if binary problem
 			if (pathClasses.size() == 2) {
-				if (label == 0)
-					logger.info("" + (1-prediction));
-				else 
-					logger.info("" + prediction);
+				if ((int) Math.round(prediction) == 0)
+					prediction = 1 - prediction;
 				
 				// Set the PathClass of the objects in the test set; also set the probability
-				for (PathObject p : testSet) {
-					p.setPathClass(pathClasses.get(label), prediction);
-				}
+//				for (PathObject p : testSet) {
+//					p.setPathClass(pathClasses.get(label), prediction);
+//				}
 			}
 			else {
 				// Set the PathClass of the objects in the test set
-				for (PathObject p : testSet) {
-					p.setPathClass(pathClasses.get(label));
-				}
+//				for (PathObject p : testSet) {
+//					p.setPathClass(pathClasses.get(label));
+//				}
 			}
 		}
+		
+		logger.info("Finished prediction.");
 		
 		return results;
 	}

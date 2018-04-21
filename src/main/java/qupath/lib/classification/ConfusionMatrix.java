@@ -54,6 +54,14 @@ public class ConfusionMatrix {
 	}
 	
 	/**
+	 * Clear the confusion matrix
+	 */
+	public void clear () {
+		int n = pathClasses.size();
+		matrix = new int[n][n];
+	}
+	
+	/**
 	 * Register a classification, and update the confusion matrix accordingly.
 	 * 
 	 * @param trueClass
@@ -66,7 +74,7 @@ public class ConfusionMatrix {
 			errors++;
 			return;
 		}
-		matrix[indTrue][indAssigned]++;
+		matrix[indAssigned][indTrue]++;
 	}
 
 	@Override
@@ -136,6 +144,29 @@ public class ConfusionMatrix {
 			.append("Recall: " + calcRecall() + "\n");
 		
 		return sb.toString();
+	}
+	
+	/**
+	 * Return a list of statistics.
+	 * @return
+	 */
+	public List <Double> getStatList () {
+		List <Double> statList = new ArrayList<>();
+		
+		if (!Double.isNaN(calcAccuracy()))
+			statList.add (calcAccuracy());
+		else 
+			statList.add (0.0);
+		if (!Double.isNaN(calcPrecision()))
+				statList.add (calcPrecision());
+		else 
+			statList.add(0.0);
+		if (!Double.isNaN(calcRecall()))
+			statList.add(calcRecall());
+		else 
+			statList.add (0.0);
+		
+		return statList;
 	}
 	
 	private double calcAccuracy () {

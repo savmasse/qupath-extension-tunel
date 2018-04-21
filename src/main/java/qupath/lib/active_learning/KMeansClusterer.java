@@ -37,7 +37,6 @@ public class KMeansClusterer extends AbstractClusterer {
 			clusteredMap.put(k, objects);
 			i++;
 		}
-
 	}
 	
 	@Override
