@@ -942,9 +942,9 @@ public class ActiveLearningPanel2 implements PathObjectHierarchyListener, ImageD
 			int attempts = 0;
 			while ( !(it = itMap.get(currentCluster)).hasNext() && attempts < itMap.size()) {
 				
-				logger.info("Arrived at end of cluster " + clusterCount);
+				logger.info("Arrived at end of cluster " + currentCluster);
 				currentCluster++;
-				if (currentCluster >= currentCluster)
+				if (currentCluster >= clusterCount)
 					currentCluster = 0;
 				
 				attempts++;

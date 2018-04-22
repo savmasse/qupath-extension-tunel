@@ -26,8 +26,19 @@ public abstract class AbstractSampleProposal {
 	public AbstractSampleProposal(final List<PathObject> pathObjects) {
 		this.pathObjects = pathObjects;
 	}
-	
+
 	public PathObject serveObject () {
 		return currentObject;
 	}
+	
+	/**
+	 * Get the name of the sample proposal method.
+	 * @return
+	 */
+	public abstract String getName ();
+	
+	/**
+	 * Reset the method if this type requires is.
+	 */
+	protected abstract void reset ();
 }

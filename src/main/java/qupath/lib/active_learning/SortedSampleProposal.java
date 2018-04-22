@@ -45,6 +45,8 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 		        return Double.compare(lhs.getClassProbability(), rhs.getClassProbability()); // Use double compare to safely handle NaN and Infinity
 		    }
 		});
+		
+		iter = pathObjects.iterator();
 	}
 	
 	@Override
@@ -53,6 +55,16 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 			currentObject = iter.next();
 		}
 		return currentObject;
+	}
+	
+	@Override
+	public String getName () {
+		return "Sorted";
+	}
+
+	@Override
+	protected void reset() {
+		reSort();
 	}
 	
 }

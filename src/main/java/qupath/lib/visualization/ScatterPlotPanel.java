@@ -55,8 +55,8 @@ public class ScatterPlotPanel <T>{
 		
 		// Create chart
 		scatterChart = new ScatterChart<Number, Number>(xAxis, yAxis);
-		scatterChart.setPrefSize(600, 600);
-        scatterChart.setMinSize(500, 500);
+		scatterChart.setPrefSize(500, 500);
+        scatterChart.setMinSize(400, 400);
         
         // Set the titles 
         xAxis.setLabel(xTitle);                

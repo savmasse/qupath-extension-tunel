@@ -2,12 +2,14 @@
 package qupath.lib.active_learning;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.math3.ml.clustering.Clusterer;
 
+import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathObject;
 
 public abstract class AbstractClusterer {
@@ -16,13 +18,44 @@ public abstract class AbstractClusterer {
 	protected Clusterer<ClusterableObject> clusterer;
 	protected Map <Integer, List<ClusterableObject>> clusteredMap;
 	
-	public AbstractClusterer (List<PathObject> pathObjects, List<double[]> dataPoints) {
+	public AbstractClusterer (final List<PathObject> pathObjects, final List<double[]> dataPoints) {
 		
 		clusterableObjects = new ArrayList<>();
 		clusteredMap = new HashMap<>();
 		
 		for (int i = 0; i < pathObjects.size(); i++) {
 			clusterableObjects.add(new ClusterableObject(pathObjects.get(i), dataPoints.get(i)));
+		}
+	}
+	
+	/**
+	 * Constructor which calculates the datapoints so we don't have calculate them beforehand.
+	 * @param pathObjects
+	 * @param featureNames
+	 */
+	public AbstractClusterer (final List<PathObject> pathObjects, final Collection <String> featureNames) {
+		
+		clusterableObjects = new ArrayList<>();
+		clusteredMap = new HashMap<>();
+		
+		for (PathObject p : pathObjects) {
+			MeasurementList ml = p.getMeasurementList();
+			List<Double> featureList = new ArrayList<>();
+			
+			for (String feature : featureNames) {
+				if (ml.containsNamedMeasurement(feature) ) {
+					featureList.add (ml.getMeasurementValue(feature));
+				}
+			}
+			
+			// Convert to primitive
+			double [] d = new double [featureList.size()];
+			for (int i = 0; i < featureList.size(); i++) {
+				d[i] = featureList.get(i);
+			}
+			
+			// Add a new clusterable object
+			clusterableObjects.add((new ClusterableObject(p, d)));
 		}
 	}
 	

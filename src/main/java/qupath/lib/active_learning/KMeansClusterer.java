@@ -1,6 +1,7 @@
 package qupath.lib.active_learning;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.math3.ml.clustering.CentroidCluster;
@@ -14,6 +15,12 @@ public class KMeansClusterer extends AbstractClusterer {
 	
 	public KMeansClusterer(List<PathObject> pathObjects, List<double[]> dataPoints, int clusterCount) {
 		super(pathObjects, dataPoints);
+		
+		clusterer = new KMeansPlusPlusClusterer<>(clusterCount);
+	}
+	
+	public KMeansClusterer(List<PathObject> pathObjects, Collection<String> featureNames, int clusterCount) {
+		super (pathObjects, featureNames);
 		
 		clusterer = new KMeansPlusPlusClusterer<>(clusterCount);
 	}

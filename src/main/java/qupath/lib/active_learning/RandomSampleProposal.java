@@ -42,4 +42,14 @@ public class RandomSampleProposal extends AbstractSampleProposal {
 		
 		return currentObject;
 	}
+	
+	@Override
+	public String getName () {
+		return "Random";
+	}
+	
+	@Override
+	protected void reset() {
+		// Do nothing
+	}
 }
