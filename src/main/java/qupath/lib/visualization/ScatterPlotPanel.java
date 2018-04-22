@@ -3,13 +3,17 @@ package qupath.lib.visualization;
 
 import qupath.lib.objects.PathObject;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import org.jzy3d.maths.Array;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javafx.scene.chart.*;
 import javafx.scene.layout.*;
+import javafx.scene.shape.Circle;
 
 /**
  * Simple implementation of a javafx scatter plot which links objects of class T to the 
@@ -51,17 +55,34 @@ public class ScatterPlotPanel <T>{
 		
 		// Create chart
 		scatterChart = new ScatterChart<Number, Number>(xAxis, yAxis);
-		scatterChart.setPrefSize(800, 800);
+		scatterChart.setPrefSize(600, 600);
         scatterChart.setMinSize(500, 500);
         
         // Set the titles 
         xAxis.setLabel(xTitle);                
         yAxis.setLabel(yTitle);
         scatterChart.setTitle(chartTitle);
+        
+        // Set CSS style
+        pane.setStyle("-fx-background-radius: 5px; -fx-padding: 2px;");
 	}
 	
 	public GridPane getPane () {
 		return pane;
+	}
+	
+	/**
+	 * Change the steps. The scatter plot may automatically choose to have non-integer steps, so this
+	 * might have to be forced to get a clean plot.
+	 * 
+	 * @param xStep
+	 * @param yStep
+	 */
+	public void setAxesSteps (final int xStep, final int yStep) {
+		xAxis.setTickLength(yStep);
+		yAxis.setTickLength(yStep);
+		xAxis.setMinorTickLength(xStep);
+		yAxis.setMinorTickLength(yStep);
 	}
 	
 	/**
@@ -80,6 +101,9 @@ public class ScatterPlotPanel <T>{
 				d = new XYChart.Data<>(data[i][0], data[i][1], objects.get(i));
 			else 
 				d = new XYChart.Data<>(data[i][0], data[i][1]);
+			Region plotpoint = new Region();
+	        plotpoint.setShape(new Circle(2.0));
+	        d.setNode(plotpoint);
 			
 			res.getData().add(d);
 		}
@@ -111,6 +135,24 @@ public class ScatterPlotPanel <T>{
 		// Set the axes to fit the new data
 		xAxis.autoRangingProperty().set(true);
 		yAxis.autoRangingProperty().set(true);
+	}
+	
+	/**
+	 * Add a series to the scatter plot.
+	 * @param name
+	 * @param data Map containing the data points for the scatter plot.
+	 * @param objects Objects to link to the data points. Set to null to ignore.
+	 */
+	public void addSeries (String name, Map<Integer, Double> data, List <T> objects) {
+		
+		List <double[]> dataList = new ArrayList<>();
+		
+		// Turn map into list of [x,y] arrays
+		for (Integer i: data.keySet()) {
+			dataList.add(new double [] {i, data.get(i)});
+		}
+		
+		addSeries (name, dataList, objects);
 	}
 	
 	public void addSeries (String name, List<double[]> data, List<T>objects) {

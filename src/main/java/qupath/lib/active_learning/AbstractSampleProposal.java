@@ -11,6 +11,9 @@ import qupath.lib.objects.PathObject;
  * Abstract parent class for the different sample proposal methods used in the active 
  * learning algorithm.
  * 
+ * TODO: Consider adding functionality here to remember previous proposals since this is
+ * used in every child class anyway...
+ * 
  * @author Sam Vanmassenhove
  *
  */

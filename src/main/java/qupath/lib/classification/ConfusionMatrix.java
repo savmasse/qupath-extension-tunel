@@ -76,6 +76,22 @@ public class ConfusionMatrix {
 		}
 		matrix[indAssigned][indTrue]++;
 	}
+	
+	/**
+	 * Return the confion matrix as a one-dimensional list. This will make it easier to save it in a log file.
+	 * @return
+	 */
+	public List <Integer> matrixAsList () {
+		List<Integer> matrixList = new ArrayList<>();
+		
+		for (int i = 0; i < matrix.length; i++) {
+			for (int j = 0; j < matrix[0].length; j++) {
+				matrixList.add(matrix[i][j]);
+			}
+		}
+		
+		return matrixList;
+	}
 
 	@Override
 	public String toString() {
@@ -144,6 +160,19 @@ public class ConfusionMatrix {
 			.append("Recall: " + calcRecall() + "\n");
 		
 		return sb.toString();
+	}
+	
+	/**
+	 * Return the names of the performance measures in the stat list.
+	 * @return
+	 */
+	public List <String> getPerformanceMeasureNames () {
+		List <String> res = new ArrayList<>();
+		res.add ("Accuracy");
+		res.add ("Precision");
+		res.add ("Recall");
+		
+		return res;
 	}
 	
 	/**

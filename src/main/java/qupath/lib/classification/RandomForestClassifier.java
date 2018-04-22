@@ -2,6 +2,7 @@
 package qupath.lib.classification;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -139,11 +140,21 @@ public class RandomForestClassifier {
 	}
 	
 	/**
+	 * Add a single new training sample and recalculate the feature and label matrix.
+	 * @param sample
+	 */
+	public void addTrainingSample (final PathObject sample) {
+		trainingSet.add(sample);
+		featureMatrix = createFeatureMatrix(trainingSet);
+		labels = createLabelMatrix(trainingSet);
+	}
+	
+	/**
 	 * Train the classifier on the current dataset
 	 */
 	public void train () {
 		rTrees.train(featureMatrix, Ml.ROW_SAMPLE, labels);
-		logger.info("Classifier was trained on " + featureMatrix.rows() + " samples.");
+//		logger.info("Classifier was trained on " + featureMatrix.rows() + " samples.");
 	}
 	
 	/**
@@ -183,8 +194,20 @@ public class RandomForestClassifier {
 			}
 		}
 		
-		logger.info("Finished prediction.");
+//		logger.info("Finished prediction.");
 		
 		return results;
+	}
+	
+	/**
+	 * Perform a prediction on the trainingSet
+	 * @return
+	 */
+	public List<PathClass> predictTraining () {
+		return predict(trainingSet);
+	}
+	
+	public List<PathObject> getTrainingSet () {
+		return trainingSet;
 	}
 }

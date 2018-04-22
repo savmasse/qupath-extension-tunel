@@ -2,7 +2,6 @@ package qupath.lib.active_learning;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -37,6 +36,9 @@ public class RandomSampleProposal extends AbstractSampleProposal {
 			index = random.nextInt(pathObjects.size());
 			currentObject = pathObjects.get(index);
 		}
+		
+		// Add to the set so we know not to pick this one next time
+		previouslyProposed.add(currentObject);
 		
 		return currentObject;
 	}
