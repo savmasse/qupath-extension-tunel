@@ -19,8 +19,9 @@ import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 
 /**
- * Bare-bones wrapper for the Random Forest classifier without any UI. Should be useful for scripting
- * purposes. This classifier will not update any properties of the objects in the image.
+ * Bare-bones wrapper for the Random Forest classifier to be used in scripts that require more
+ * options such as using multiple classifiers in series. This classifier will not set PathClasses
+ * or update the probabilities; this is up to the user.
  * 
  * @author Sam Vanmassenhove
  *
@@ -35,9 +36,8 @@ public class RandomForestClassifier {
 	
 	private Mat labels; // Training labels
 	private Mat featureMatrix; // Feature matrix of training samples
+	private Mat classProbabilities; // Probabilities; this is only used in a binary classification problem
 	private RTrees rTrees;
-	
-	private int maxTrees;
 	
 	public RandomForestClassifier (	final List <String> featureList, 
 									final List <PathClass> pathClasses, 
@@ -97,6 +97,32 @@ public class RandomForestClassifier {
 	}
 	
 	/**
+	 * Return the predicted probabilities. Must run a prediction first before calling this. Cannot use this if
+	 * the problem is not a binary classification problem.
+	 * @return
+	 */
+	public Mat getProbabilities () {
+		if (pathClasses.size() == 2)
+			return classProbabilities;
+		else {
+			logger.info("Could not calculate probabilities - not a binary classifier !");
+			return null;
+		}
+	}
+	
+	/**
+	 * Set the feature matrix for the training objects. Use this when manually setting features that
+	 * cannot be found in the measurement list of the detection objects. The user is responsible for 
+	 * the matching of the feature rows to the correct objects in the training matrix.
+	 * @param featureMatrix
+	 */
+	public void setFeatureMatrix (final Mat featureMatrix, final boolean recalculateLabels) {
+		this.featureMatrix = featureMatrix;
+		if (recalculateLabels)
+			labels = createLabelMatrix(trainingSet);
+	}
+	
+	/**
 	 * Set the labels of the objects for their class.
 	 * 
 	 * @param pathObjects
@@ -116,7 +142,9 @@ public class RandomForestClassifier {
 			
 			for (PathClass c : pathClasses) {
 				if (pc.isDerivedFrom(c) || pc.toString().contains(c.toString())) {
+//					logger.info(pc.toString());
 					int label = pathClasses.indexOf(c);
+					logger.info("" + label);
 					res.put(i, 0, label);
 					break; // Exit loop once label is set
 				}
@@ -166,13 +194,11 @@ public class RandomForestClassifier {
 		List <PathClass> results = new ArrayList<>();
 		Mat testFeatureMatrix = createFeatureMatrix(testSet);		
 		Mat predictions = new Mat();
+		classProbabilities = new Mat(testFeatureMatrix.rows(), testFeatureMatrix.cols(), CvType.CV_32F);
 		
 		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
 			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
-//			logger.info("" + label + testFeatureMatrix.row(i).dump());
-//			if (label > 2 || label < 0) {
-//				QuPathGUI.getInstance().getImageData().getHierarchy().getSelectionModel().setSelectedObject(testSet.get(i));
-//			}
+
 			double prediction = rTrees.predict(testFeatureMatrix.row(i), predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
 			results.add(pathClasses.get(label));
 			
@@ -181,20 +207,36 @@ public class RandomForestClassifier {
 				if ((int) Math.round(prediction) == 0)
 					prediction = 1 - prediction;
 				
-				// Set the PathClass of the objects in the test set; also set the probability
-//				for (PathObject p : testSet) {
-//					p.setPathClass(pathClasses.get(label), prediction);
-//				}
-			}
-			else {
-				// Set the PathClass of the objects in the test set
-//				for (PathObject p : testSet) {
-//					p.setPathClass(pathClasses.get(label));
-//				}
+				classProbabilities.put(i, 0, prediction);
 			}
 		}
 		
-//		logger.info("Finished prediction.");
+		return results;
+	}
+	
+	/**
+	 * Perform a prediction on a list of testing samples. Give custom feature matrix; this in case
+	 * other features than those available in the measurement list are being used.
+	 */
+	public List <PathClass> predict (final Mat testFeatureMatrix) {
+		
+		List <PathClass> results = new ArrayList<>();		
+		Mat predictions = new Mat();
+		
+		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
+			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
+
+			double prediction = rTrees.predict(testFeatureMatrix.row(i), predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
+			results.add(pathClasses.get(label));
+			
+			// Get the probabilities if binary problem
+			if (pathClasses.size() == 2) {
+				if ((int) Math.round(prediction) == 0)
+					prediction = 1 - prediction;
+				
+				classProbabilities.put(i, 0, prediction);
+			}
+		}
 		
 		return results;
 	}

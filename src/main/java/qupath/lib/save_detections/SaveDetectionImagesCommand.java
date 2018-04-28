@@ -1,13 +1,19 @@
 package qupath.lib.save_detections;
 
+import java.awt.ImageCapabilities;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.imageio.ImageIO;
+
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.measure.Calibration;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import javafx.stage.Stage;
@@ -25,6 +32,7 @@ import javafx.scene.layout.*;
 import javafx.scene.control.*;
 import qupath.imagej.objects.PathImagePlus;
 import qupath.imagej.objects.ROIConverterIJ;
+import qupath.lib.geom.Point2;
 import qupath.lib.gui.ImageDataChangeListener;
 import qupath.lib.gui.ImageDataWrapper;
 import qupath.lib.gui.QuPathGUI;
@@ -43,7 +51,9 @@ import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
 import qupath.lib.plugins.parameters.ParameterList;
+import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.PathROIToolsAwt;
+import qupath.lib.roi.PolygonROI;
 import qupath.lib.roi.interfaces.ROI;
 
 /**
@@ -294,7 +304,6 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			
 			// Now save these PathObjects
 			saveObjects(pathObjects, outputFolder);
-			
 		}
 		
 		private void saveObjects (List <PathObject> pathObjects, File outputFolder) {
@@ -306,23 +315,67 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			int counter = 0;
 			
 			// Get access to the actual image data
+			File f = new File ("C:\\users\\SamVa\\Desktop\\test.png");
 			ImageServer<BufferedImage> server = imageData.getServer();
-			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, ServerTools.getDownsampleFactor(server, 0, true));
+			double downSampleFactor = ServerTools.getDownsampleFactor(server, 0, true);
+//			BufferedImage img = server.readBufferedImage(RegionRequest.createInstance(server.getPath(), downSampleFactor, );
+//			try {
+//				ImageIO.write(img, "PNG", f);
+//			} catch (IOException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
+			double pixelSize = imageData.getServer().getAveragedPixelSizeMicrons();
+			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, pathObjects.get(0).getROI(), ServerTools.getDownsampleFactor(server, pixelSize, true));
+//			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, ServerTools.getDownsampleFactor(server, 0, false));
 			ImageProcessor ip = pathImage.getImage().getProcessor();
 			
 			ImagePlus imp = new ImagePlus("Image writer", ip);
 			Calibration cal = new Calibration(imp);
 			
+			// New :::
+			imp = pathImage.getImage();
+			Roi roi = ROIConverterIJ.convertToIJRoi(pathObjects.get(10).getROI(), cal, downSampleFactor);
+
+			ImageProcessor i = imp.getStack().getProcessor(imp.getStackIndex(0,0,0));
+			ImageProcessor j = imp.getStack().getProcessor(imp.getStackIndex(2,0,0));
+			i.setRoi(roi);
+			j.setRoi(roi);
+			short [] channel1 = ((short[]) i.crop().getPixels());
+			short [] channel2 = ((short[]) j.crop().getPixels());
+			
+			
+			double [] vals = {i.crop().getHeight(), i.crop().getWidth()};
+			Mat mat1 = new Mat(i.crop().getHeight(), i.crop().getWidth(), CvType.CV_16U);
+			Mat mat2 = new Mat(i.crop().getHeight(), i.crop().getWidth(), CvType.CV_16U);
+			mat1.put(0, 0, channel1);
+			mat2.put(0, 0, channel2);
+			
+			// Print the matrix
+			Imgcodecs.imwrite("C:\\users\\SamVa\\Desktop\\channel_1.png", mat1);
+			Imgcodecs.imwrite("C:\\users\\SamVa\\Desktop\\channel_2.png", mat2);
+			
+			// End new :::
+			
 			// Now go through the list and save each object (in correct folder)
 			for (PathObject p : pathObjects) {
 				
 				// Skip annotations which got in here by accident; we only want detections
-				if (p instanceof PathAnnotationObject || p.getPathClass().equals(PathClassFactory.getPathClass("Image")))
-					continue;
+				if (p == null || p instanceof PathAnnotationObject || p.getPathClass() == null || p.getPathClass().equals(PathClassFactory.getPathClass("Image")))
+					continue;     
 				
 				if (saveByClass) {
 					PathClass pc = p.getPathClass();
-					File subFolder = new File (outputFolder + File.separator + pc);		
+					String className = pc.getName();
+					
+					while (pc.isDerivedClass()) {
+						className = pc.getParentClass().getName() + "_" + className;
+						pc = pc.getParentClass();
+					}
+					// Reset the pc
+					pc = p.getPathClass();
+					
+					File subFolder = new File (outputFolder + File.separator + className);		
 					
 					if (!classMap.containsKey(pc)) { // Create the subfolder
 						subFolder.mkdirs();
@@ -360,19 +413,37 @@ public class SaveDetectionImagesCommand implements PathCommand {
 		 * Writes the file to the specified file location.
 		 * @param outputFile
 		 */
-		private void saveFile (PathObject pathObject, ImageProcessor ip, File outputFile, double downsampleFacotor, Calibration cal) {
+		private void saveFile (PathObject pathObject, ImageProcessor ip, File outputFile, double downSampleFactor, Calibration cal) {
 			
 			// Only save what's actually inside the ROI of the object
-			Roi roi = ROIConverterIJ.convertToIJRoi(pathObject.getROI(), cal, downsampleFacotor);
+			ROI pathROI = pathObject.getROI();
+			Roi roi = ROIConverterIJ.convertToIJRoi(pathROI, cal, downSampleFactor);
 			Mat write;
 			ShortProcessor sp;
 			
 			if (cropROI) {
 				// Crop to the ROI
-				ImageProcessor cp = (ImageProcessor) ip.duplicate();
-				cp.setRoi(roi);
-				cp.fillOutside(roi);
-				sp = (ShortProcessor) cp.crop();
+//				ImageProcessor cp = (ImageProcessor) ip.duplicate();
+//				cp.setRoi(roi);
+//				cp.fillOutside(roi);
+//				sp = (ShortProcessor) cp.crop();
+				
+				ip.setRoi(roi);
+				sp = (ShortProcessor) ip.crop();
+
+		        // Create a new roi for the ShortProcessor from the imageprocessor roi. All points have to
+		        // to be translated to correspond with the new coordinate system.
+		        List<Point2> pList = pathROI.getPolygonPoints();
+
+		        // Update the points to correspond with the new processor
+		        List<Point2> tempList = new ArrayList<>();
+		        for (Point2 p : pList) {
+		            Point2 temp = new Point2(p.getX() - pathROI.getBoundsX(), p.getY() - pathROI.getBoundsY());
+		            tempList.add(temp);
+		        }
+		        ROI r = new PolygonROI(tempList);
+		        sp.fillOutside(ROIConverterIJ.convertToIJRoi(r, cal, downSampleFactor));
+		        
 			}
 			else {
 				// Save the whole bounding box as is
@@ -389,10 +460,6 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			
 			// Release the Mat for memory reasons
 			write.release();
-			
-		}
-		
-		public static void getCroppedData () {
 			
 		}
 		

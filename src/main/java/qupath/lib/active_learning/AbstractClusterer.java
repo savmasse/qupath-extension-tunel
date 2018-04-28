@@ -8,12 +8,15 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.math3.ml.clustering.Clusterer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathObject;
 
 public abstract class AbstractClusterer {
 	
+	protected static final Logger logger = LoggerFactory.getLogger(AbstractClusterer.class);
 	protected List<ClusterableObject> clusterableObjects;
 	protected Clusterer<ClusterableObject> clusterer;
 	protected Map <Integer, List<ClusterableObject>> clusteredMap;
@@ -60,11 +63,14 @@ public abstract class AbstractClusterer {
 	}
 	
 	/**
-	 * Do the actual clustering and put create a map of clusters.
-	 * @return
+	 * Do the actual clustering and create a map of clusters.
 	 */
 	public abstract void cluster ();
 	
+	/**
+	 * Return the map of clusters.
+	 * @return
+	 */
 	public Map<Integer, List<ClusterableObject>> getClusterMap () {
 		return clusteredMap;
 	}

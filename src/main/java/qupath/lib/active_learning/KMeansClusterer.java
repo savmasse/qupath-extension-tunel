@@ -26,12 +26,16 @@ public class KMeansClusterer extends AbstractClusterer {
 	}
 	
 	/**
-	 * Do the actual clustering and place the clusters into a map of Clusterable objects. Return the
-	 * clusterable objects instead of regular pathobjects because we'll want access to the features
+	 * Do the actual clustering and place the clusters into a map of clusterable objects. Return the
+	 * clusterable objects instead of regular PathObjects because we'll want access to the features
 	 * for plotting.
 	 */
 	@Override
 	public void cluster() {
+		
+		// Reset the map so it is emptied if we are reclustering
+		clusteredMap.clear();
+		
 		List<CentroidCluster<ClusterableObject>> results = clusterer.cluster(clusterableObjects);
 		
 		int i = 0;
@@ -44,6 +48,8 @@ public class KMeansClusterer extends AbstractClusterer {
 			clusteredMap.put(k, objects);
 			i++;
 		}
+		
+//		logger.info (resultToString());
 	}
 	
 	@Override
