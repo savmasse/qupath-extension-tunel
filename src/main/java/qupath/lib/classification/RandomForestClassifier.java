@@ -144,7 +144,6 @@ public class RandomForestClassifier {
 				if (pc.isDerivedFrom(c) || pc.toString().contains(c.toString())) {
 //					logger.info(pc.toString());
 					int label = pathClasses.indexOf(c);
-					logger.info("" + label);
 					res.put(i, 0, label);
 					break; // Exit loop once label is set
 				}
@@ -194,7 +193,7 @@ public class RandomForestClassifier {
 		List <PathClass> results = new ArrayList<>();
 		Mat testFeatureMatrix = createFeatureMatrix(testSet);		
 		Mat predictions = new Mat();
-		classProbabilities = new Mat(testFeatureMatrix.rows(), testFeatureMatrix.cols(), CvType.CV_32F);
+		classProbabilities = new Mat(testFeatureMatrix.rows(), 1, CvType.CV_32F);
 		
 		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
 			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
@@ -222,7 +221,8 @@ public class RandomForestClassifier {
 		
 		List <PathClass> results = new ArrayList<>();		
 		Mat predictions = new Mat();
-		
+		classProbabilities = new Mat(testFeatureMatrix.rows(), 1, CvType.CV_32F);
+
 		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
 			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
 

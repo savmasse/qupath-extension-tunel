@@ -38,7 +38,7 @@ public abstract class AbstractSampleProposal {
 	public abstract String getName ();
 	
 	/**
-	 * Reset the method if this type requires is.
+	 * Reset the method so it can used in many cycles.
 	 */
 	protected abstract void reset ();
 }

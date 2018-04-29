@@ -32,9 +32,16 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 	}
 	
 	private void initialize () {
+		
+		// Get the clusters
 		iteratorMap.clear();
 		clusterer.cluster();
 		clusterMap = clusterer.getClusterMap();
+		
+		// Sort each cluster in order of increasing probability
+		for (List<ClusterableObject> clusterableList : clusterMap.values()) {
+			sort(clusterableList);
+		}
 		
 		for (Integer i : clusterMap.keySet()) {
 			Iterator<ClusterableObject> it = clusterMap.get(i).iterator();
@@ -75,19 +82,18 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 		return "Sorted_Clusters";
 	}
 	
-	private void sort () {
-		Collections.sort(this.pathObjects, new Comparator<PathObject>() {
+	private void sort (List<ClusterableObject> objects) {
+		Collections.sort(objects, new Comparator<ClusterableObject>() {
 		    @Override
-		    public int compare(PathObject lhs, PathObject rhs) {
+		    public int compare(ClusterableObject lhs, ClusterableObject rhs) {
 		        // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
-		        return Double.compare(lhs.getClassProbability(), rhs.getClassProbability()); // Use double compare to safely handle NaN and Infinity
+		        return Double.compare(lhs.getPathObject().getClassProbability(), rhs.getPathObject().getClassProbability()); // Use double compare to safely handle NaN and Infinity
 		    }
 		});
 	}
 
 	@Override
 	protected void reset() {
-		sort();
 		initialize();
 	}
 	

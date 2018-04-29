@@ -49,12 +49,11 @@ public class KMeansClusterer extends AbstractClusterer {
 			i++;
 		}
 		
-//		logger.info (resultToString());
+//		logger.info ("Performed clustering");
 	}
 	
 	@Override
 	protected String getName() {
 		return "KMeans";
 	}
-	
 }

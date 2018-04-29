@@ -37,7 +37,7 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 	 * We may want to sort again after a certain amount of samples have been added and the classification 
 	 * has changed.
 	 */
-	public void reSort () {
+	public void sort () {
 		Collections.sort(this.pathObjects, new Comparator<PathObject>() {
 		    @Override
 		    public int compare(PathObject lhs, PathObject rhs) {
@@ -64,7 +64,7 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 
 	@Override
 	protected void reset() {
-		reSort();
+		sort();
 	}
 	
 }
