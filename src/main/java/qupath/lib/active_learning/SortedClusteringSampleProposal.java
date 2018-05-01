@@ -37,6 +37,7 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 		iteratorMap.clear();
 		clusterer.cluster();
 		clusterMap = clusterer.getClusterMap();
+		currentCluster = 0;
 		
 		// Sort each cluster in order of increasing probability
 		for (List<ClusterableObject> clusterableList : clusterMap.values()) {
@@ -74,7 +75,9 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 		if (currentCluster >= clusterCount)
 			currentCluster = 0;
 		
-		return it.next().getPathObject();
+		if (it != null)
+			return it.next().getPathObject();
+		else return currentObject;
 	}
 
 	@Override

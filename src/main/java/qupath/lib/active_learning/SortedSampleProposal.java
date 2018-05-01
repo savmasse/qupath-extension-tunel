@@ -51,6 +51,7 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 	
 	@Override
 	public PathObject serveObject() {
+		
 		if (iter.hasNext()) {
 			currentObject = iter.next();
 		}

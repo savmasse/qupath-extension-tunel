@@ -8,6 +8,7 @@ import java.util.List;
 import org.apache.commons.lang3.ArrayUtils;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.TermCriteria;
 import org.opencv.ml.Ml;
 import org.opencv.ml.RTrees;
 import org.slf4j.Logger;
@@ -53,6 +54,14 @@ public class RandomForestClassifier {
 		// Convert the features of objects in the classifier
 		featureMatrix = createFeatureMatrix(trainingSet);
 		labels = createLabelMatrix(trainingSet);
+		
+		// Set standard values
+		rTrees.setMaxDepth(25);
+		rTrees.setMinSampleCount(10);
+		rTrees.setUse1SERule(true);
+		
+		TermCriteria tc = new TermCriteria(TermCriteria.COUNT, 50, 0);
+		rTrees.setTermCriteria(tc);
 	}
 	
 	public RandomForestClassifier ( final List <String> featureList,
