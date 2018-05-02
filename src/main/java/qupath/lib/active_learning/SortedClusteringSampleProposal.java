@@ -24,7 +24,7 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 	
 	public SortedClusteringSampleProposal(final List<PathObject> pathObjects, final List<String> featureNames, final int clusterCount) {
 		super(pathObjects);
-		clusterer = new KMeansClusterer(pathObjects, featureNames, 5);
+		clusterer = new KMeansClusterer(pathObjects, featureNames, clusterCount);
 		this.clusterCount = clusterCount;
 		iteratorMap = new HashMap<>();
 		
@@ -34,7 +34,7 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 	private void initialize () {
 		
 		// Get the clusters
-		iteratorMap.clear();
+		iteratorMap = new HashMap<>();
 		clusterer.cluster();
 		clusterMap = clusterer.getClusterMap();
 		currentCluster = 0;

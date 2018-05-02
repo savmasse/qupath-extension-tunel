@@ -56,8 +56,8 @@ public class RandomForestClassifier {
 		labels = createLabelMatrix(trainingSet);
 		
 		// Set standard values
-		rTrees.setMaxDepth(25);
-		rTrees.setMinSampleCount(10);
+		//rTrees.setMaxDepth(25);
+		//rTrees.setMinSampleCount(10);
 		rTrees.setUse1SERule(true);
 		
 		TermCriteria tc = new TermCriteria(TermCriteria.COUNT, 50, 0);
