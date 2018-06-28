@@ -38,6 +38,10 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 	 * has changed.
 	 */
 	public void sort () {
+		
+		// Clear iterator
+		iter = null;
+		
 		Collections.sort(this.pathObjects, new Comparator<PathObject>() {
 		    @Override
 		    public int compare(PathObject lhs, PathObject rhs) {
@@ -46,7 +50,7 @@ public class SortedSampleProposal extends AbstractSampleProposal {
 		    }
 		});
 		
-		iter = pathObjects.iterator();
+		iter = this.pathObjects.iterator();
 	}
 	
 	@Override

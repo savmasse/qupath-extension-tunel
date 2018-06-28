@@ -31,6 +31,10 @@ public abstract class AbstractSampleProposal {
 		return currentObject;
 	}
 	
+	public List<PathObject> getObjects () {
+		return pathObjects;
+	}
+	
 	/**
 	 * Get the name of the sample proposal method.
 	 * @return

@@ -56,12 +56,33 @@ public class RandomForestClassifier {
 		labels = createLabelMatrix(trainingSet);
 		
 		// Set standard values
-		//rTrees.setMaxDepth(25);
-		//rTrees.setMinSampleCount(10);
-		rTrees.setUse1SERule(true);
+//		int maxDepth = 0;
+//		rTrees.setMaxDepth(maxDepth == 0 ? Integer.MAX_VALUE : maxDepth);
+//		rTrees.setMinSampleCount(10);
+//		rTrees.setUse1SERule(true);
+//
+//		TermCriteria tc = null;
+//		int maxIterations = 50;
+//		double termEPS = 0;
+//		
+//		if (maxIterations > 0) {
+//			if (termEPS > 0)
+//				tc = new TermCriteria(TermCriteria.COUNT + TermCriteria.EPS, maxIterations, termEPS);
+//			else
+//				tc =  new TermCriteria(TermCriteria.COUNT, maxIterations, 0);
+//		} else if (termEPS > 0)
+//			tc = new TermCriteria(TermCriteria.EPS, 50, termEPS);
 		
-		TermCriteria tc = new TermCriteria(TermCriteria.COUNT, 50, 0);
-		rTrees.setTermCriteria(tc);
+//		rTrees.setTermCriteria(tc);
+	}
+	
+	public RandomForestClassifier (	final List <String> featureList, 
+			final List <PathClass> pathClasses, 
+			final List <PathObject> trainingSet,
+			final boolean pruning) {
+
+			this(featureList, pathClasses, trainingSet);
+			rTrees.setUse1SERule(pruning);
 	}
 	
 	public RandomForestClassifier ( final List <String> featureList,
@@ -127,6 +148,29 @@ public class RandomForestClassifier {
 	 */
 	public void setFeatureMatrix (final Mat featureMatrix, final boolean recalculateLabels) {
 		this.featureMatrix = featureMatrix;
+		if (recalculateLabels)
+			labels = createLabelMatrix(trainingSet);
+	}
+	
+	/**
+	 * Set the feature matrix by giving a list of features. Using a list allows for easy sorting etc...
+	 * @param featureList
+	 * @param recalculateLabels
+	 */
+	public void setFeatureMatrix (final List<Double[]> featureList, final boolean recalculateLabels) {
+
+		featureMatrix = new Mat (featureList.size(), featureList.get(0).length, CvType.CV_32F);
+		for (int i = 0; i < featureList.size(); i++) {
+			double [] row = new double [featureList.get(0).length];
+			
+			// Convert Double[] to double[]
+			for (int j = 0; j < featureList.get(0).length; j++) {
+				row[j] = featureList.get(i)[j];
+			}
+			
+			featureMatrix.put(i, 0, row);
+		}
+		
 		if (recalculateLabels)
 			labels = createLabelMatrix(trainingSet);
 	}
@@ -205,19 +249,26 @@ public class RandomForestClassifier {
 		classProbabilities = new Mat(testFeatureMatrix.rows(), 1, CvType.CV_32F);
 		
 		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
-			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
-
-			double prediction = rTrees.predict(testFeatureMatrix.row(i), predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
-			results.add(pathClasses.get(label));
+			float prediction = rTrees.predict(testFeatureMatrix.row(i));
+			int label = (int) prediction;
 			
+			Mat mat = testFeatureMatrix.row(i);
+			float p = rTrees.predict(mat, predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
+			//logger.info(", " + p);
+			
+			results.add(pathClasses.get(label));
+						
 			// Get the probabilities if binary problem
 			if (pathClasses.size() == 2) {
+				
 				if ((int) Math.round(prediction) == 0)
 					prediction = 1 - prediction;
 				
 				classProbabilities.put(i, 0, prediction);
 			}
 		}
+		
+//		logger.info(classProbabilities.dump());
 		
 		return results;
 	}
@@ -233,13 +284,14 @@ public class RandomForestClassifier {
 		classProbabilities = new Mat(testFeatureMatrix.rows(), 1, CvType.CV_32F);
 
 		for (int i = 0; i < testFeatureMatrix.rows(); i++) {
-			int label = (int) rTrees.predict(testFeatureMatrix.row(i));
-
-			double prediction = rTrees.predict(testFeatureMatrix.row(i), predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
+			float prediction =  rTrees.predict(testFeatureMatrix.row(i));
+			int label = (int) prediction;
+//			float prediction = rTrees.predict(testFeatureMatrix.row(i), predictions, RTrees.PREDICT_SUM) / rTrees.getTermCriteria().maxCount;
 			results.add(pathClasses.get(label));
 			
 			// Get the probabilities if binary problem
 			if (pathClasses.size() == 2) {
+				
 				if ((int) Math.round(prediction) == 0)
 					prediction = 1 - prediction;
 				

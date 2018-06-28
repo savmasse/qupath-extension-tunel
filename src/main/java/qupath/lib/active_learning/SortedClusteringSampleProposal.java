@@ -77,7 +77,8 @@ public class SortedClusteringSampleProposal extends AbstractSampleProposal {
 		
 		if (it != null)
 			return it.next().getPathObject();
-		else return currentObject;
+		else 
+			return currentObject;
 	}
 
 	@Override
