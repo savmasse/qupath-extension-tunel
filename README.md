@@ -9,7 +9,6 @@ The process of installation for the extension is exactly the same as that of oth
 
 ## Using the extension
 
-
 ### Segmentation
 Before classification the user should perform a segmentation using the technique they would regularly use. This could be a watershed segmentation in QuPath or any segmentation method used through the ImageJ extension.
 
@@ -39,6 +38,3 @@ The active learning process can be stopped when the user is satisfied with the r
 ```
 INFO: Number of reclassified objects: 308 of 10514
 ```
-
-
-
