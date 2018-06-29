@@ -25,10 +25,12 @@ The initial training samples can be selected by drawing an annotation around the
 ![Image](images/Panel.PNG?raw=true "Title")
 
 #### Clustering
-The active learning used in the implementation requires the data to clustered to work effectively. Please set the amount of clusters with the slider (recommended amount is 10). You can also view a plot of these clusters to see the data distribution and pick a good amount of clusters.
+The active learning used in the implementation requires the data to clustered to work effectively. Please set the amount of clusters with the slider (recommended amount is 10), and then click the "Cluster" button. This should take only a few seconds to process. You can also view a plot of these clusters to see the data distribution and pick a good amount of clusters.
 
 #### Sampling
 After the data is clustered, the algorithm will propose a sample from each cluster. The proposed sample will be centered in the image and selected (in yellow, see image below), while the user retains control over the zoom so the surrounding context can be observed. The user now makes a classification decision: either the current classification can be accepted or rejected. In case of a rejection the new class can be set with the 'Choose class' drop-down menu.
+
+It is recommended to retrain the classifier (with the classification panel) every time a sample from each cluster has been proposed. So if you choose to create 10 clusters, then retrain every 10 samples.
 
 ![Image](images/Sampling.PNG?raw=true "Title")
 
