@@ -1,9 +1,11 @@
 package qupath.lib.active_learning;
 
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.controlsfx.control.action.Action;
 import org.controlsfx.control.action.ActionUtils;
@@ -11,11 +13,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javafx.stage.Stage;
+import qupath.lib.classifiers.PathClassificationLabellingHelper;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.commands.interfaces.PathCommand;
+import qupath.lib.gui.helpers.DisplayHelpers;
 import qupath.lib.gui.helpers.PanelToolsFX;
+import qupath.lib.gui.helpers.dialogs.DialogHelper;
+import qupath.lib.gui.helpers.dialogs.DialogHelperFX;
 import qupath.lib.gui.models.HistogramDisplay;
 import qupath.lib.gui.plots.ScatterPlot;
+import qupath.lib.images.ImageData;
+import qupath.lib.objects.classes.PathClass;
+import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import javafx.scene.image.*;
 import javafx.scene.layout.*;
 import javafx.geometry.Insets;
@@ -37,21 +46,26 @@ import javafx.scene.effect.*;
  * @author Sam Vanmassenhove
  *
  */
-public class ActiveLearningCommand2 implements PathCommand {
+public class ActiveLearningCommand3 implements PathCommand {
 	
 	// Every class need a logger...
 	private static final Logger logger = LoggerFactory.getLogger(ActiveLearningCommand.class);
 
 	private final QuPathGUI qupath;
 	private Stage dialog;
-	private ActiveLearningPanel2 panel;
+	private ActiveLearningPanel3 panel;
 	
-	public ActiveLearningCommand2 (final QuPathGUI qupath) {
+	public ActiveLearningCommand3 (final QuPathGUI qupath) {
 		this.qupath = qupath;
 	}
 	
 	@Override
 	public void run() {
+		
+		// Run checks if panel should be opened
+		if (!runChecks())
+			return;
+			
 		
 		if (dialog == null) {
 			dialog = new Stage();
@@ -59,7 +73,7 @@ public class ActiveLearningCommand2 implements PathCommand {
 				dialog.initOwner(qupath.getStage());
 			
 			dialog.setTitle("Active learning");
-			panel = new ActiveLearningPanel2(qupath);
+			panel = new ActiveLearningPanel3(qupath);
 			
 			BorderPane pane = new BorderPane();
 			pane.setCenter(panel.getPane());
@@ -88,6 +102,29 @@ public class ActiveLearningCommand2 implements PathCommand {
 			}
 		}
 		
+	}
+	
+	/**
+	 * Check if everything is OK and the panel is allowed to be opened.
+	 */
+	private boolean runChecks () {
+
+		ImageData<BufferedImage> imageData = qupath.getImageData();		
+		// If there is no image opened then we cannot open the panel
+		if (imageData == null) {
+			DisplayHelpers.showErrorMessage("No image data", "Please open an image before attempting to open this window.");;
+			return false;
+		}
+		
+		// Check if any classes have been set previously; if not then we cannot open the panel
+		PathObjectHierarchy hierarchy = imageData.getHierarchy();
+		Set<PathClass> representedClasses = PathClassificationLabellingHelper.getRepresentedPathClasses(hierarchy, null);
+		if (representedClasses.size() == 1) {
+			DisplayHelpers.showErrorMessage("No current classification", "Please perform an initial classification before opening this window.");;
+			return false;
+		}
+		
+		return true;
 	}
 	
 	private void resetPanel () {
