@@ -22,7 +22,7 @@ public class ClusteringSampleProposal extends AbstractSampleProposal {
 	
 	public ClusteringSampleProposal(final List<PathObject> pathObjects, final List<String> featureNames, final int clusterCount) {
 		super(pathObjects);
-		clusterer = new KMeansClusterer(pathObjects, featureNames, 5);
+		clusterer = new KMeansClusterer(pathObjects, featureNames, clusterCount);
 		this.clusterCount = clusterCount;
 		iteratorMap = new HashMap<>();
 		

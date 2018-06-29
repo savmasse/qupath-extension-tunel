@@ -108,14 +108,16 @@ public class RTreesClassifier extends ParameterizableOpenCvClassifier<RTrees> im
 	@Override
 	protected void setPredictedClass(final RTrees classifier, final List<PathClass> pathClasses, final Mat samples, final Mat results, final PathObject pathObject) {
 		if (pathClasses.size() == 2 && termCriteria != null && ((TermCriteria.EPS & termCriteria.type) == 0) && termCriteria.maxCount > 0) {
-			double prediction = classifier.predict(samples, results, RTrees.PREDICT_SUM)  / termCriteria.maxCount;
-
+			double prediction = classifier.predict(samples, results, RTrees.PREDICT_SUM)  / termCriteria.maxCount;			
 			int index = (int)Math.round(prediction); // Round the prediction
+						
 			// Convert to a probability based on the number of trees
 			double probability = prediction;
+			
+			logger.info(probability + "");
+			
 			if (index == 0)
 				probability = 1 - probability;
-			
 			
 			// Set the class & probability
 			// Threshold the probability to get the cases where there is sufficient doubt to warrant a user choice !

@@ -4,6 +4,7 @@ import java.awt.ImageCapabilities;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +19,7 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.measure.Calibration;
@@ -30,6 +32,7 @@ import javafx.scene.Scene;
 import javafx.scene.image.*;
 import javafx.scene.layout.*;
 import javafx.scene.control.*;
+import qupath.imagej.helpers.IJTools;
 import qupath.imagej.objects.PathImagePlus;
 import qupath.imagej.objects.ROIConverterIJ;
 import qupath.lib.geom.Point2;
@@ -328,6 +331,8 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			double pixelSize = imageData.getServer().getAveragedPixelSizeMicrons();
 			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, pathObjects.get(0).getROI(), ServerTools.getDownsampleFactor(server, pixelSize, true));
 //			PathImage<ImagePlus> pathImage = PathImagePlus.createPathImage(server, ServerTools.getDownsampleFactor(server, 0, false));
+			
+			//PathImage<ImagePlus> p = PathImagePlus.createPathImage(server, ServerTools.getDownsampleFactor(server, 0, true));
 			ImageProcessor ip = pathImage.getImage().getProcessor();
 			
 			ImagePlus imp = new ImagePlus("Image writer", ip);
@@ -336,7 +341,6 @@ public class SaveDetectionImagesCommand implements PathCommand {
 			// New :::
 			imp = pathImage.getImage();
 			Roi roi = ROIConverterIJ.convertToIJRoi(pathObjects.get(10).getROI(), cal, downSampleFactor);
-
 			ImageProcessor i = imp.getStack().getProcessor(imp.getStackIndex(0,0,0));
 			ImageProcessor j = imp.getStack().getProcessor(imp.getStackIndex(2,0,0));
 			i.setRoi(roi);
