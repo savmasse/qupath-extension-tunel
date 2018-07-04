@@ -5,7 +5,9 @@ QuPath extension which includes active learning for nucleus and cell classificat
 This extension includes a generic active learning approach to the classification problems in biological microscopy images. An advantage of this method is that it will work on both fluorescence and microscopy images. The method is significantly faster than using the machine learning capabilities of the standard QuPath release as much fewer samples have to be annotated to achieve the same performance.
 
 ## Installation
-The process of installation for the extension is exactly the same as that of other QuPath extensions. The user should either drag the .jar file onto the main QuPath window or directly place it in the extensions folder. The source code for this project is available at "https://github.com/savmasse/qupath-extension-tunel". A jar file can be compiled from these project files.  
+The process of installation for the extension is exactly the same as that of other QuPath extensions. The user should either drag the .jar file onto the main QuPath window or directly place it in the extensions folder. The source code for this project is available at "https://github.com/savmasse/qupath-extension-tunel". A jar file can be compiled from these project files.
+
+Two pre-compiled jar files are available (both are required) at the following location: https://www.dropbox.com/sh/g7it060805do4g2/AADJj-FM5MpjuLhM1FTUysDNa?dl=0
 
 ## Using the extension
 
